@@ -7,7 +7,7 @@ This is a Julia based implementation for the framework introduced in [Topologica
 
 The picture below shows the reebgraph for MNIST testset produced by this implementation using probabilities produced by the [log PageRank](https://arxiv.org/abs/2207.11321) mechanism.
 
-![Reebgraph of the MNIST test set using Kamada-Kawai layout](src/reeb_kk_julia2.png)
+![Reebgraph of the MNIST test set using Kamada-Kawai layout](src/reeb_kk_julia.png)
 
 With the same example, we show how to use the module in `example.jl` and sample code for producing the picture is in `picturegtda.jl`
 
