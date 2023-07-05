@@ -9,7 +9,7 @@ The picture below shows the reebgraph for MNIST testset produced by this impleme
 
 ![Reebgraph of the MNIST test set using Kamada-Kawai layout](src/reeb_kk_julia.png)
 
-With the same example, we show how to use the module in `example.jl` and sample code for producing the picture is in `picturegtda.jl`
+We show a sample use of the module in `example.jl` which assumes the MNIST test data in and lenses as input.
 
 It offers functions to analyze embeddings from 3 different procedures : -
 
