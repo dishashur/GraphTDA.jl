@@ -13,7 +13,7 @@ With the same example, we show how to use the module in `example.jl` and sample 
 
 It offers functions to analyze embeddings from 3 different procedures : -
 
-1. Diffusion - analyzepredictions() 
+1. Diffusion - analyzepredictions(G,X;kwargs...) 
     _Required_ arguments:
     - **G**: The graph structure. We assume this is the adjacency matrix as a sparse CSC matrix that represents an undirected graph. 
     - **X**: The lenses with each lens in a column as a matrix type. These are the embedding vectors obtained from the procedure.
@@ -28,7 +28,7 @@ It offers functions to analyze embeddings from 3 different procedures : -
     - **component_size_thd**: This is the minimum number of original data a component should include to be considered as a reebnode.
 
 
-2. Neural Networks - analyzeNN()
+2. Neural Networks - analyzepredictions(X;kwargs...) 
      _Required_ arguments:
     - **X**: These are theembedding vectors returned by the neural network.
     - **trainlen** : Number of train examples
@@ -39,7 +39,7 @@ It offers functions to analyze embeddings from 3 different procedures : -
     - **G**: The graph structure. We assume this is the adjacency matrix as a sparse CSC matrix that represents an undirected graph. 
     - **Same** as in analyzepredictions() 
 
-3. Graph Neural Networks - analyzeGNN()
+3. Graph Neural Networks - analyzepredictions(X;kwargs...) 
      _Required_ arguments:
     - **X**: These are the embedding vectors returned by the graph neural network.
     - **trainlen** : Number of train examples
