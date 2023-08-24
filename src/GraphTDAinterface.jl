@@ -7,7 +7,16 @@ function _intlzrbgrph(X::Matrix{Float64};G = sparse([],[],[]),labels = [],labels
     if length(findnz(G)[3]) == 0
         G = canonicalize_graph(X,knn,batch_size)
     end
-    return gnl(G,X,labels,labels_to_eval)
+    #convert any form of labels into numeric labels 
+    origlabels = copy(labels)
+    if length(origlabels)!=0
+        ulabs = unique(origlabels)
+        labels = Dict()
+        for i=1:length(ulabs)
+             labels[ulabs[i]] = i
+        end
+   end
+   return gnl(G,X,origlabels,labels,labels_to_eval)
 end
 
 

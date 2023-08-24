@@ -53,7 +53,8 @@ using SparseArrays, Statistics, DataStructures, MatrixNetworks, Plots, LinearAlg
 struct gnl
      G::SparseMatrixCSC{Float64, Int64}
      preds::Matrix{Float64} 
-     labels::Vector{Any} 
+     origlabels::Vector{Any} 
+     labels::Dict{Any,Int64}
      labels_to_eval::Vector{Int64} 
  end
  
@@ -69,7 +70,7 @@ mutable struct sGTDA
      A_reeb::SparseMatrixCSC{Float64, Int64}
      G_reeb::SparseMatrixCSC{Float64, Int64}
      greeb_orig::SparseMatrixCSC{Float64, Int64}
-     reeb2node::DefaultDict{Int64, Vector{Float64}, DataType}
+     reeb2node::Vector{Vector{Int64}}
      node2reeb::DefaultDict{Int64, Vector{Float64}, DataType}
      reebtime::Float64
 
@@ -684,12 +685,17 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
      A.sample_colors_uncertainty = uncertainty
      A.sample_colors_error = zeros(size(obj.preds,1))
 
+     
+     #=now obj.origlabels has the original labels and obj.labels has the numeric conversion
+     --- To use the  numeric form, we need to access obj.labels[obj.origlabels[i]]
+     =#
+
 
      training_node_labels = zeros((size(obj.G,1),size(obj.preds,2)))
-
+      
      if known_nodes !== nothing
           for node in known_nodes
-               training_node_labels[node,obj.labels[node]+1] = 1
+               training_node_labels[node,obj.labels[obj.origlabels[node]]] = 1
           end
      end
      total_mixing_all = copy(training_node_labels)
@@ -719,14 +725,14 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
           else
                A.sample_colors_mixing[i] = uncertainty[i]
           end
-          A.sample_colors_error[i] = 1-(pre_labels[i] == (obj.labels[i]+1))
+          A.sample_colors_error[i] = 1-(pre_labels[i] == (obj.labels[obj.origlabels[i]]))
           A.sample_colors_uncertainty[i] = uncertainty[i]
      end
      
      
      for key in keys(A.final_components_filtered)
           component = A.final_components_filtered[key]
-          component_label_cnt = StatsBase.countmap(obj.labels[component])
+          component_label_cnt = StatsBase.countmap([obj.labels[obj.origlabels[e]] for e in component])
           for l in keys(component_label_cnt)
               A.node_colors_class_truth[key,l+1] = component_label_cnt[l]
           end
@@ -829,7 +835,7 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
 
                if closest_neigh != -1
                     component_to_connect,modified = connect_the_components(A,closest_neigh,verbose=verbose)
-		    append!(all_edge_index[1],key_to_connect)
+		          append!(all_edge_index[1],key_to_connect)
                     append!(all_edge_index[2],component_to_connect)
                     append!(extra_edges[1],node_to_connect)
                     append!(extra_edges[2],closest_neigh)
@@ -841,18 +847,21 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
           end
           A_tmp = sparse(all_edge_index[1],all_edge_index[2],ones(length(all_edge_index[1])),reeb_dim,reeb_dim)
 	     A_tmp = make_graph_symmetric(A_tmp,reeb_dim)
-
+          A.greeb_orig = A_tmp
           if verbose
                @info "length(findnz(A_tmp)[1])" length(findnz(A_tmp)[1])
           end
 	     
           components_removed = gives_removed_components(A, A_tmp, 0, reeb_component_thd)
      end
-
-     A.G_reeb = A_tmp[A.filtered_nodes,:][:,A.filtered_nodes]
+     
+     A.filtered_nodes = sort(unique!(intersect(A.filtered_nodes,[k for k in keys(A.final_components_filtered)])))
+     
+     
+     A.G_reeb  = A_tmp[A.filtered_nodes,:][:,A.filtered_nodes]
 
      #now that we have the gtda graph - we see the projected graph A_reeb
-     reeb_components = find_components(A.G_reeb,size_thd=0)[2]
+     reeb_components = find_components(A.greeb_orig,size_thd=0)[2]
      ei,ej = [],[]
      Ar = obj.G
      for reeb in reeb_components
@@ -878,25 +887,23 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
      A.A_reeb = make_graph_symmetric(A.A_reeb,size(Ar,1))
      
      
-     return A_tmp,extra_edges
+     return extra_edges
 end
 
 function get_reebgroups!(A::sGTDA;verbose=false)
      nodes = []
      A.node2reeb = DefaultDict{Int,Vector{Float64}}(Vector{Float64})
-     A.reeb2node = DefaultDict{Int,Vector{Float64}}(Vector{Float64})
-     A.filtered_nodes = sort(unique!(intersect(A.filtered_nodes,[k for k in keys(A.final_components_filtered)])))
-     for i in A.filtered_nodes
-          append!(A.reeb2node[i],A.final_components_filtered[i])
-	     A.reeb2node[i] = sort(unique!(A.reeb2node[i]))
-          component = A.final_components_filtered[i]
+     A.reeb2node = [[] for _ in range(1,length(A.filtered_nodes))]
+     for (i,r) in enumerate(A.filtered_nodes)
+          component = A.final_components_filtered[r]
+          A.reeb2node[i] = component
           for noodles in component
                append!(A.node2reeb[noodles],i)
           end
           append!(nodes,component)
      end
      nodes = sort(unique!(nodes))
-     
+     filter!(((key,val),) -> length(val)!=0,A.node2reeb)
      if verbose
           @info "Final number of reebnodes " length(A.filtered_nodes)
           @info "Number of original nodes included after merging reeb components " length(nodes)
@@ -904,6 +911,10 @@ function get_reebgroups!(A::sGTDA;verbose=false)
      end
 
 end
+
+
+
+
 
 
 function connect_the_components(A::sGTDA,closest_neigh;verbose=false)
@@ -975,7 +986,7 @@ function gtdagraph(A::gnl;overlap = 0.025,max_split_size = 100,min_group_size=5,
      end
 
      
-     gtda.greeb_orig,extra_edges = build_reeb_graph!(A,gtda,M,reeb_component_thd=min_component_group,max_iters=max_merge_iters,is_merging=is_merging,edges_dists=edges_dists,verbose=verbose)
+     extra_edges = build_reeb_graph!(A,gtda,M,reeb_component_thd=min_component_group,max_iters=max_merge_iters,is_merging=is_merging,edges_dists=edges_dists,verbose=verbose)
      get_reebgroups!(gtda,verbose=verbose)
      gtda.reebtime = time()-this
      if verbose
@@ -985,9 +996,4 @@ function gtdagraph(A::gnl;overlap = 0.025,max_split_size = 100,min_group_size=5,
     return gtda
 
 end
-
-
-
-
-
 
