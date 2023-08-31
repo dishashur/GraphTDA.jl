@@ -11,16 +11,16 @@ function _intlzrbgrph(X::Matrix{Float64};G = sparse([],[],[]),labels = [],labels
     origlabels = copy(labels)
     if length(origlabels)!=0
         ulabs = unique(origlabels)
-        labels = Dict()
+        labels = zeros(size(ulabs))
         for i=1:length(ulabs)
-             labels[ulabs[i]] = i
+             labels[i] = ulabs[i]
         end
    end
    return gnl(G,X,origlabels,labels,labels_to_eval)
 end
 
 
-analyzepredictions(A::SparseMatrixCSC{Float64, Int64},X::Matrix{Float64};kwargs...) = analyzepredictions(X,G=A;kwargs...)
+analyzepredictions(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = analyzepredictions(X,G=A;kwargs...)
 
 function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_to_eval = [i for i in range(1,size(X,2))],labels=[],
     extra_lens=nothing,alpha=0.5,batch_size=10000,known_nodes=nothing,knn=5,nsteps_preprocess=5,
@@ -47,13 +47,12 @@ function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_t
         test_mask = zeros(size(A.G,1))
         test_mask[test_nodes] .= 1
 
-	error_prediction!(A,gtda,train_mask = train_mask,val_mask = val_mask,
-        nsteps=nsteps_mixing,alpha = alpha,known_nodes=known_nodes,degree_normalize=degree_normalize_mixing)
+	error_prediction!(A,gtda,train_mask = train_mask,val_mask = val_mask,nsteps=nsteps_mixing,alpha = alpha,known_nodes=known_nodes,degree_normalize=degree_normalize_mixing)
         
 	@info "prediction error" sum(gtda.sample_colors_mixing)
 
      else
-         @info "Original labels is missing, unable to calculate prediction error"
+         @info "Original labels are missing, unable to calculate prediction error"
 
      end
 
@@ -78,21 +77,54 @@ function getnodeerrors(A::GraphTDA.sGTDA)
 
 end
 
+#reeb composition gives the number of nodes in comprising a reeb node
+getreebcomposition(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getreebcomposition(X,G=A;kwargs...)
+
+function getreebcomposition(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+    A = analyzepredictions(X;G=G,kwargs...)
+    return getreebcomposition(A)
+end
+
 function getreebcomposition(A::GraphTDA.sGTDA)
     return A.reeb2node
+end
+
+#node composition gives the reeb node indices that each node is a part of
+getnodecomposition(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getnodecomposition(X,G=A;kwargs...)
+
+function getnodecomposition(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+    A = analyzepredictions(X;G=G,kwargs...)
+    return getnodecomposition(A)
 end
 
 function getnodecomposition(A::GraphTDA.sGTDA)
     return A.node2reeb
 end
 
+#reeb graph is the graph made up of the reeb nodes
+getreebgraph(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getreebgraph(X,G=A;kwargs...)
+
+function getreebgraph(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+    A = analyzepredictions(X;G=G,kwargs...)
+    return getreebgraph(A)
+end
+
 function getreebgraph(A::GraphTDA.sGTDA)
     return A.G_reeb
+end
+
+#projected graph is the reeb graph expanded to the node view
+getprojectedgraph(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getprojectedgraph(X,G=A;kwargs...)
+
+function getprojectedgraph(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+    A = analyzepredictions(X;G=G,kwargs...)
+    return getprojectedgraph(A)
 end
 
 function getprojectedgraph(A::GraphTDA.sGTDA)
     return A.A_reeb
 end
+
 
 function getcomputetime(A::GraphTDA.sGTDA)
     return A.reebtime

@@ -54,7 +54,7 @@ struct gnl
      G::SparseMatrixCSC{Float64, Int64}
      preds::Matrix{Float64} 
      origlabels::Vector{Any} 
-     labels::Dict{Any,Int64}
+     labels::Vector{Any} 
      labels_to_eval::Vector{Int64} 
  end
  
@@ -695,7 +695,7 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
       
      if known_nodes !== nothing
           for node in known_nodes
-               training_node_labels[node,obj.labels[obj.origlabels[node]]] = 1
+               training_node_labels[node,findall(i->i==obj.origlabels[node],labels)[1]] = 1
           end
      end
      total_mixing_all = copy(training_node_labels)
