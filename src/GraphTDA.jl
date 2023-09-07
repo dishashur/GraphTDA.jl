@@ -2,11 +2,12 @@
 
 module GraphTDA
 
-include("GraphTDAAlgo.jl")
-export gtdagraph!, sGTDA, toy, canonicalize_graph, error_prediction!, smooth_lenses!
+using SparseArrays, Statistics, DataStructures, MatrixNetworks, Plots, LinearAlgebra, JLD2, StatsBase
+include("mainalg.jl")
+export gnl, gtdagraph!, sGTDA, toy, canonicalize_graph, error_prediction!, smooth_lenses!
 
 
-include("GraphTDAinterface.jl")
-export gnl, analyzepredictions, getreeberrors, getnodeerrors, getreebcomposition, getnodecomposition, getreebgraph, getprojectedgraph, getcomputetime
+include("interface.jl")
+export analyzepredictions, getreeberrors, getnodeerrors, getreebcomposition, getnodecomposition, getreebgraph, getprojectedgraph, getcomputetime
 
 end

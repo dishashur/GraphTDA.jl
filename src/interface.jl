@@ -1,24 +1,6 @@
 
-include("GraphTDAAlgo.jl")
 
-
-
-function _intlzrbgrph(X::Matrix{Float64};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],knn=5,batch_size=256)
-    if length(findnz(G)[3]) == 0
-        G = canonicalize_graph(X,knn,batch_size)
-    end
-    #convert any form of labels into numeric labels 
-    origlabels = copy(labels)
-    if length(origlabels)!=0
-        ulabs = unique(origlabels)
-        labels = zeros(size(ulabs))
-        for i=1:length(ulabs)
-             labels[i] = ulabs[i]
-        end
-   end
-   return gnl(G,X,origlabels,labels,labels_to_eval)
-end
-
+using .mainalg
 
 analyzepredictions(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = analyzepredictions(X,G=A;kwargs...)
 
@@ -30,7 +12,7 @@ function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_t
 
     A = _intlzrbgrph(X,G=G,labels_to_eval=labels_to_eval,labels=labels,knn=knn,batch_size=batch_size)
 
-    gtda = gtdagraph(A,max_split_size = max_split_size,overlap = overlap,min_group_size=min_group_size,min_component_group = min_component_group
+    gtda = gtdagraph!(A,max_split_size = max_split_size,overlap = overlap,min_group_size=min_group_size,min_component_group = min_component_group
      ,alpha = alpha,nsteps_preprocess=nsteps_preprocess,extra_lens=extra_lens,is_merging=is_merging,split_criteria=split_criteria,split_thd=split_thd,
      is_normalize=is_normalize,is_standardize=is_standardize,merge_thd=merge_thd,max_split_iters=max_split_iters,max_merge_iters=max_merge_iters,
      degree_normalize_preprocess=degree_normalize_preprocess,verbose=verbose)
@@ -53,14 +35,13 @@ function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_t
 
      else
          @info "Original labels are missing, unable to calculate prediction error"
-
      end
 
     return gtda
 end
 
 
-function getreeberrors(A::GraphTDA.sGTDA)
+function getreeberrors(A::sGTDA)
     if A.node_colors_class !== nothing
         return A.node_colors_class,A.node_colors_class_truth,A.node_colors_error,A.node_colors_uncertainty,A.node_colors_mixing
     else
@@ -68,7 +49,7 @@ function getreeberrors(A::GraphTDA.sGTDA)
     end
 end
 
-function getnodeerrors(A::GraphTDA.sGTDA)
+function getnodeerrors(A::sGTDA)
     if A.sample_colors_mixing !== nothing
         return A.sample_colors_mixing, A.sample_colors_uncertainty, A.sample_colors_error
     else
@@ -78,55 +59,39 @@ function getnodeerrors(A::GraphTDA.sGTDA)
 end
 
 #reeb composition gives the number of nodes in comprising a reeb node
+getreebcomposition(A::sGTDA) = A.reeb2node
 getreebcomposition(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getreebcomposition(X,G=A;kwargs...)
-
 function getreebcomposition(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
     A = analyzepredictions(X;G=G,kwargs...)
     return getreebcomposition(A)
 end
 
-function getreebcomposition(A::GraphTDA.sGTDA)
-    return A.reeb2node
-end
 
 #node composition gives the reeb node indices that each node is a part of
+getnodecomposition(A::sGTDA) = A.node2reeb
 getnodecomposition(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getnodecomposition(X,G=A;kwargs...)
-
 function getnodecomposition(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
     A = analyzepredictions(X;G=G,kwargs...)
     return getnodecomposition(A)
 end
 
-function getnodecomposition(A::GraphTDA.sGTDA)
-    return A.node2reeb
-end
-
 #reeb graph is the graph made up of the reeb nodes
+getreebgraph(A::sGTDA) = A.G_reeb
 getreebgraph(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getreebgraph(X,G=A;kwargs...)
-
 function getreebgraph(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
     A = analyzepredictions(X;G=G,kwargs...)
     return getreebgraph(A)
 end
 
-function getreebgraph(A::GraphTDA.sGTDA)
-    return A.G_reeb
-end
 
 #projected graph is the reeb graph expanded to the node view
+getprojectedgraph(A::sGTDA) = A.A_reeb
 getprojectedgraph(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getprojectedgraph(X,G=A;kwargs...)
-
 function getprojectedgraph(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
     A = analyzepredictions(X;G=G,kwargs...)
     return getprojectedgraph(A)
 end
 
-function getprojectedgraph(A::GraphTDA.sGTDA)
-    return A.A_reeb
-end
 
-
-function getcomputetime(A::GraphTDA.sGTDA)
-    return A.reebtime
-end
+getcomputetime(A::sGTDA) = A.reebtime
 

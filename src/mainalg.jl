@@ -1,79 +1,52 @@
 
-
-#=gtda in julia
-
-
-	gtdagraph(G,X;kwargs...) -> (edges,groups)
-	
-Create the GTDA/Mapper graph from an input graph G and a set of lenses X.  The outputs
-are the edges of the graph and the groups represented by each node. The latter is a list 
-of lists. 
-
-Arguments
----------
-- `G` is the graph structure. We assume this is the adjacency matrix as a 
-	sparse CSC matrix that represents an undirected graph. 
-- `X` are the lenses with each lens in a column as a matrix type. This can be dense or sparse.
-
-Optional arguments [groups MEAN reebnodes]
-------------------
-- `maxsplitsize`: the group size at which the gtda algorithm will stop splitting a group, 
-     this defaults to ---- this corresponds to smallest_component --- means the maximum number of nodes in a reebnode
-
-- `mingroupsize`: means the number of nodes in a reeb node --- means the minimum number of nodes in a reebnode
-
-- `mincomponentgroups`: the minimum number of groups in a connected component in the GTDA 
-     graph before we try to connect it to via spanning-tree like edges --- refers to the variable node_size_thd, 
-refers to the functinon merge_reeb_nodes
-
-theres another one called reeb_component_thd that rejects the reeb components
-
-- `overlap`: ... 
-
-
-function gtdagraph(G,X; mingroupsize=5, min)
-
-end 
-
-function smooth_lenses!(Y,G,X)
-end 
-
-function smooth_lenses(G,X;kwargs...)
-  
-end 
-
-=#
-
-###########################
-
+module mainalg
 
 using SparseArrays, Statistics, DataStructures, MatrixNetworks, Plots, LinearAlgebra, JLD2, StatsBase
 
-#this structure holds the objects that will not chnage throughout the program
+
+#this structure holds the objects that will not change throughout the program
 struct gnl
      G::SparseMatrixCSC{Float64, Int64}
      preds::Matrix{Float64} 
      origlabels::Vector{Any} 
-     labels::Vector{Any} 
+     labels::Vector{Int64} 
      labels_to_eval::Vector{Int64} 
  end
  
+ 
+ function _intlzrbgrph(X::Matrix{Float64};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],knn=5,batch_size=256)
+     if length(findnz(G)[3]) == 0
+         G = canonicalize_graph(X,knn,batch_size)
+     end
+     #convert any form of labels into numeric labels 
+     origlabels = copy(labels)
+     if length(origlabels)!=0
+         ulabs = unique(origlabels)
+         labels = zeros(size(ulabs))
+         for i in range(1,length(ulabs))
+              labels[i] = ulabs[i]
+         end
+    end
+    return gnl(G,X,origlabels,labels,labels_to_eval)
+ end
+ 
+ 
 
-mutable struct sGTDA
+ mutable struct sGTDA
      node_assignments::Vector{Vector{Int64}}
      node_assignments_tiny_components::Vector{Vector{Int}}
      final_components_unique::Dict{Int64,Vector{Int64}}
      final_components_filtered::Dict{Int64,Vector{Int64}}
      final_components_removed::Dict{Int64,Vector{Int64}}
      filtered_nodes::Vector{Int64}
-
+ 
      A_reeb::SparseMatrixCSC{Float64, Int64}
      G_reeb::SparseMatrixCSC{Float64, Int64}
      greeb_orig::SparseMatrixCSC{Float64, Int64}
      reeb2node::Vector{Vector{Int64}}
      node2reeb::DefaultDict{Int64, Vector{Float64}, DataType}
      reebtime::Float64
-
+ 
      node_colors_class::Matrix{Float64}
      node_colors_class_truth::Matrix{Float64}
      node_colors_error::Vector{Float64}
@@ -82,8 +55,11 @@ mutable struct sGTDA
      sample_colors_mixing::Vector{Float64}
      sample_colors_uncertainty::Matrix{Float64}
      sample_colors_error::Vector{Float64}
+
      sGTDA() = new()
-end
+ end
+
+
 
 function toy()
     return 5.0
@@ -107,7 +83,7 @@ function feat_sim_batched(features,train_features,k,batch_size)
         indices = [sortperm(similarity[i,:],rev=true)[1:k] for i=1:size(similarity,1)]
         distances = [similarity[i,j] for (i,j) in enumerate(indices)]
        
-        @show indices = indices .+ si - 1
+        indices = indices .+ si - 1
         if overall_distances === nothing
             overall_distances = distances
             overall_indices = indices
@@ -164,6 +140,14 @@ function _is_overlap(x,y)
           end
      end
      return true
+end
+
+
+smooth_lenses!(X::Matrix{Float64},G::SparseMatrixCSC{Float64, Int64},labels_to_eval = Vector{Int64};kwargs...) = smooth_lenses!(X,G=G,labels_to_eval=labels_to_eval;kwargs...)
+smooth_lenses!(X::Matrix{Float64},G::SparseMatrixCSC{Float64, Int64};kwargs...) = smooth_lenses!(X,G=G;kwargs...)
+function smooth_lenses!(X::Matrix{Float64};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],kwargs...)
+     A = _intlzrbgrph(X,G=G,labels_to_eval = labels_to_eval)
+     return smooth_lenses!(A;kwargs...)
 end
 
 function smooth_lenses!(A::gnl;alpha=0.5,nsteps=3,normalize=true,extra_lens=nothing,standardize=false,degree_normalize=1,verbose=false)
@@ -958,7 +942,7 @@ function select_merge_edges(A_knn,M;merge_thd=1.0)
      return edges_dists
 end
 
-function gtdagraph(A::gnl;overlap = 0.025,max_split_size = 100,min_group_size=5,min_component_group=5,alpha=0.5,nsteps_preprocess=5,extra_lens=nothing,is_merging=true,split_criteria="diff",split_thd=0,is_normalize=true,is_standardize=false,merge_thd=1.0,max_split_iters=200,max_merge_iters=10,nprocs=1,degree_normalize_preprocess=1,verbose=false)
+function gtdagraph!(A::gnl;overlap = 0.025,max_split_size = 100,min_group_size=5,min_component_group=5,alpha=0.5,nsteps_preprocess=5,extra_lens=nothing,is_merging=true,split_criteria="diff",split_thd=0,is_normalize=true,is_standardize=false,merge_thd=1.0,max_split_iters=200,max_merge_iters=10,nprocs=1,degree_normalize_preprocess=1,verbose=false)
 
      M,Ar = smooth_lenses!(A,extra_lens=extra_lens,alpha=alpha,nsteps = nsteps_preprocess,normalize = is_normalize,standardize = is_standardize,degree_normalize=degree_normalize_preprocess)
      
@@ -997,3 +981,6 @@ function gtdagraph(A::gnl;overlap = 0.025,max_split_size = 100,min_group_size=5,
 
 end
 
+
+export gnl, _intlzrbgrph, gtdagraph!, sGTDA, toy, canonicalize_graph, error_prediction!, smooth_lenses!
+end
