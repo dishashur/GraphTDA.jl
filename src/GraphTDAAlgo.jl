@@ -796,8 +796,7 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
           append!(all_edge_index[1],[i for _ in range(1,length(neighs))])
           append!(all_edge_index[2],neighs)
      end
-     @info length(all_edge_index[1])
-     @info length(all_edge_index[2])
+     
      A_tmp = sparse(all_edge_index[1],all_edge_index[2],ones(length(all_edge_index[1])),reeb_dim,reeb_dim)
      A_tmp = make_graph_symmetric(A_tmp,reeb_dim)
      components_removed = gives_removed_components(A, A_tmp, 0, reeb_component_thd)
@@ -814,28 +813,29 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
                for key in cr
                     append!(nodes_removed,A.final_components_filtered[key])
                end
-	       @info "nodes_removed" nodes_removed
-               tmp_edges_dists = edges_dists[nodes_removed,:] 
+	       if verbose
+	       		@info "nodes_removed" nodes_removed
+       		end
+	       tmp_edges_dists = edges_dists[nodes_removed,:] 
 	          neighs = sparse(tmp_edges_dists').rowval
                valid_neighs = setdiff(neighs,nodes_removed)
 	          tmp_edges_dists = tmp_edges_dists[:,valid_neighs]
 	       
                key_to_connect = -1
                closest_neigh = -1
-	       
                if size(tmp_edges_dists.nzval,1) > 0
                     kkk = findnz(tmp_edges_dists)
-	            @show closest_neigh_id = argmin(kkk[3])
+	            closest_neigh_id = argmin(kkk[3])
 		    closest_neigh = kkk[2][closest_neigh_id]
-                    @show closest_neigh = valid_neighs[closest_neigh]
+                    closest_neigh = valid_neighs[closest_neigh]
 		    rfmt = sparse(tmp_edges_dists')
-		    @show node_to_connect = nodes_removed[searchsorted(rfmt.colptr,argmin(findnz(rfmt)[3])).start-1]
-                    @show key_to_connect = minimum(intersect(A.node_assignments[node_to_connect],cr))
+		    node_to_connect = nodes_removed[searchsorted(rfmt.colptr,argmin(rfmt.nzval)).stop]
+		    key_to_connect = minimum(intersect(A.node_assignments[node_to_connect],cr))
 		end
 
                if closest_neigh != -1
                     component_to_connect,modified = connect_the_components(A,closest_neigh,verbose=verbose)
-		          append!(all_edge_index[1],key_to_connect)
+		    append!(all_edge_index[1],key_to_connect)
                     append!(all_edge_index[2],component_to_connect)
                     append!(extra_edges[1],node_to_connect)
                     append!(extra_edges[2],closest_neigh)
