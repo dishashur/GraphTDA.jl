@@ -8,6 +8,6 @@ export gnl, gtdagraph!, sGTDA, toy, canonicalize_graph, error_prediction!, smoot
 
 
 include("interface.jl")
-export analyzepredictions, getreeberrors, getnodeerrors, getreebcomposition, getnodecomposition, getreebgraph, getprojectedgraph, getcomputetime
+export analyzepredictions, getreeberrors, getnodeerrors, getreebcomposition, getnodecomposition, getreebgraph, getprojectedgraph, getcomputetime, savereebs
 
 end

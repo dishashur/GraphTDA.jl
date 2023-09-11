@@ -709,16 +709,16 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
           else
                A.sample_colors_mixing[i] = uncertainty[i]
           end
-          A.sample_colors_error[i] = 1-(pre_labels[i] == (obj.labels[obj.origlabels[i]]))
+	  A.sample_colors_error[i] = 1-(pre_labels[i] == findall(x->x==obj.origlabels[i],obj.labels)[1])
           A.sample_colors_uncertainty[i] = uncertainty[i]
      end
      
      
      for key in keys(A.final_components_filtered)
           component = A.final_components_filtered[key]
-          component_label_cnt = StatsBase.countmap([obj.labels[obj.origlabels[e]] for e in component])
+	  component_label_cnt = StatsBase.countmap([findall(x->x==obj.origlabels[e],obj.labels) for e in component][1])
           for l in keys(component_label_cnt)
-              A.node_colors_class_truth[key,l+1] = component_label_cnt[l]
+              	A.node_colors_class_truth[key,l+1] = component_label_cnt[l]
           end
           component_label_cnt = StatsBase.countmap(pre_labels[component])
           for l in keys(component_label_cnt)
@@ -797,10 +797,10 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
                for key in cr
                     append!(nodes_removed,A.final_components_filtered[key])
                end
-	       if verbose
+	          if verbose
 	       		@info "nodes_removed" nodes_removed
        		end
-	       tmp_edges_dists = edges_dists[nodes_removed,:] 
+	          tmp_edges_dists = edges_dists[nodes_removed,:] 
 	          neighs = sparse(tmp_edges_dists').rowval
                valid_neighs = setdiff(neighs,nodes_removed)
 	          tmp_edges_dists = tmp_edges_dists[:,valid_neighs]
@@ -809,29 +809,24 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
                closest_neigh = -1
                if size(tmp_edges_dists.nzval,1) > 0
                     kkk = findnz(tmp_edges_dists)
-	            closest_neigh_id = argmin(kkk[3])
-		    closest_neigh = kkk[2][closest_neigh_id]
+	               closest_neigh_id = argmin(kkk[3])
+		          closest_neigh = kkk[2][closest_neigh_id]
                     closest_neigh = valid_neighs[closest_neigh]
-		    rfmt = sparse(tmp_edges_dists')
-		    node_to_connect = nodes_removed[searchsorted(rfmt.colptr,argmin(rfmt.nzval)).stop]
-		    key_to_connect = minimum(intersect(A.node_assignments[node_to_connect],cr))
-		end
+		          rfmt = sparse(tmp_edges_dists')
+		          node_to_connect = nodes_removed[searchsorted(rfmt.colptr,argmin(rfmt.nzval)).stop]
+		          key_to_connect = minimum(intersect(A.node_assignments[node_to_connect],cr))
+		     end
 
                if closest_neigh != -1
                     component_to_connect,modified = connect_the_components(A,closest_neigh,verbose=verbose)
-		    append!(all_edge_index[1],key_to_connect)
+		          append!(all_edge_index[1],key_to_connect)
                     append!(all_edge_index[2],component_to_connect)
                     append!(extra_edges[1],node_to_connect)
                     append!(extra_edges[2],closest_neigh)
                end
           end
-          if verbose
-               @info "length(all_edge_index[1])" length(all_edge_index[1])
-               @info "length(all_edge_index[2])" length(all_edge_index[2])
-          end
           A_tmp = sparse(all_edge_index[1],all_edge_index[2],ones(length(all_edge_index[1])),reeb_dim,reeb_dim)
 	     A_tmp = make_graph_symmetric(A_tmp,reeb_dim)
-          A.greeb_orig = A_tmp
           if verbose
                @info "length(findnz(A_tmp)[1])" length(findnz(A_tmp)[1])
           end
@@ -841,8 +836,8 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
      
      A.filtered_nodes = sort(unique!(intersect(A.filtered_nodes,[k for k in keys(A.final_components_filtered)])))
      
-     
-     A.G_reeb  = A_tmp[A.filtered_nodes,:][:,A.filtered_nodes]
+     A.greeb_orig = A_tmp
+     A.G_reeb  = A.greeb_orig[A.filtered_nodes,:][:,A.filtered_nodes]
 
      #now that we have the gtda graph - we see the projected graph A_reeb
      reeb_components = find_components(A.greeb_orig,size_thd=0)[2]

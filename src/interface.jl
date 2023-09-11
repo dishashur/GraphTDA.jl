@@ -95,3 +95,11 @@ end
 
 getcomputetime(A::sGTDA) = A.reebtime
 
+function savereebs(A::sGTDA,filepath::String)
+    pro_graph = getprojectedgraph(A)
+    i,j,v = findnz(pro_graph)
+    reebcomp = getreebcomposition(A)
+    reebgraph = getreebgraph(A)  
+    p,q,r = findnz(reebgraph)
+    save("$filepath.jld2",Dict("reebgraph"=>(p,q,r),"reebcomps"=>reebcomp,"projected"=>(i,j,v)))
+end
