@@ -5,13 +5,99 @@
 
 This is a Julia based implementation for the framework introduced in [Topological Structure of Complex Prediction](https://arxiv.org/abs/2207.14358). 
 
-The picture below shows the reebgraph for MNIST testset produced by this implementation using probabilities produced by the [log PageRank](https://arxiv.org/abs/2207.11321) mechanism.
+For X := Prediction matrix, G: Input graph, A: sGTDA object, this code offers the following different functions. 
 
-![Reebgraph of the MNIST test set using Kamada-Kawai layout](src/reeb_kk_julia.png)
+1. analyzepredictions - Outputs the (1) prediction error if labels are provided, (2) the sGTDA object containing all the details of the structure
+    1.1 analyzepredictions(X)
+    1.2 analyzepredictions(X,G)
+    1.3 analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_to_eval = [i for i in range(1,size(X,2))],labels=[],
+    extra_lens=nothing,alpha=0.5,batch_size=10000,known_nodes=nothing,knn=5,nsteps_preprocess=5,
+    min_group_size = 5,max_split_size = 100,min_component_group = 5,overlap = 0.025,nsteps_mixing=10,
+    is_merging=true,split_criteria="diff",split_thd=0,is_normalize=true,is_standardize=false,merge_thd=1.0,
+    max_split_iters=200,max_merge_iters=10,degree_normalize_preprocess=1,degree_normalize_mixing=1,verbose=false)
 
-We show a sample use of the module in `example.jl` which assumes the MNIST test data in and lenses as input.
+2. reeberrorsof - Outputs node_colors_class: , 
+                        node_colors_class_truth: ,
+                        node_colors_error: ,
+                        node_colors_uncertainty: ,
+                        node_colors_mixing:
 
-It offers functions to analyze embeddings from 3 different procedures : -
+3. nodeerrorsof - Outputs sample_colors_mixing: Prediction error for each node,
+                          sample_colors_uncertainty: uncertainty for each node ,
+                          sample_colors_error: Error in nodes according to given prelabels
+
+4. reebcompositionof - Outputs the list of nodes part of each reeb node
+    4.1 reebcompositionof(A)
+    4.2 reebcompositionof(X)
+    4.3 reebcompositionof(X,G)
+
+5. nodecompositionof - Outputs the list of nodes part of each reeb node
+    5.1 nodecompositionof(A)
+    5.2 nodecompositionof(X)
+    5.3 nodecompositionof(X,G)
+
+6. reebgraphof - Outputs the reebgaph
+    6.1 reebgraphof(A)
+    6.2 reebgraphof(X)
+    6.3 reebgraphof(X,G)
+
+7. projectedgraphof - Outputs the connectivity of the original nodes according to the reebgraph
+    7.1 projectedgraphof(A)
+    7.2 projectedgraphof(X)
+    7.3 projectedgraphof(X,G)
+
+8. computetimeof(A) - Outputs the compute time of the sGTDA object A
+
+9. savereebs(A,filepath) - Saves the reeb composition and the adjacency matrices of the reeb graph and the projected graph in (i,j,v) format
+        Eg: ``` using Delimited File, SparseArrays
+                myreeb = load("savedreeb.jld2")
+                reebgraph = sparse(myreeb["reebgraph"][1],myreeb["reebgraph"][2],myreeb["reebgraph"][3])
+                projectedgraph = sparse(myreeb["projected"][1],myreeb["projected"][2],myreeb["projected"][3])
+                reebcomponents = myreeb["reebcomps"]
+             ```
+            
+
+10. gnl - Immutable structure with fields as follows
+    gnl.G = A
+    gnl.preds = X
+    gnl.origlabels 
+    gnl.labels 
+    gnl.labels_to_eval
+
+11. gtdagraph! - Outputs the sGTDA object containing all the details of the structure sGTDA described below after calculating the reeb graph. Required argument: gnl object
+
+12. sGTDA - Mutable structure with fields as follows
+            A_reeb::SparseMatrixCSC{Float64, Int64}
+            G_reeb::SparseMatrixCSC{Float64, Int64}
+            greeb_orig::SparseMatrixCSC{Float64, Int64}
+            reeb2node::Vector{Vector{Int64}}
+            node2reeb::DefaultDict{Int64, Vector{Float64}, DataType}
+            reebtime::Float64
+        
+            node_colors_class::Matrix{Float64}
+            node_colors_class_truth::Matrix{Float64}
+            node_colors_error::Vector{Float64}
+            node_colors_uncertainty::Vector{Float64}
+            node_colors_mixing::Vector{Float64}
+            sample_colors_mixing::Vector{Float64}
+            sample_colors_uncertainty::Matrix{Float64}
+            sample_colors_error::Vector{Float64}
+
+13. canonicalize_graph - Outputs the adjacency matrix from the prediction matrix if the input graph is missing. Reuired arguments are the prediction matrix, number of nearest neighbors and batch size.
+
+14. error_prediction! - Updates the sGTDA object with the error values and returns them in the following order
+    node_colors_class, node_colors_class_truth, node_colors_error, node_colors_uncertainty, node_colors_mixing,
+    sample_colors_mixing, sample_colors_error, sample_colors_uncertainty
+
+15. smooth_lenses! - Smoothen the lenses according to the description in the paper
+    15.1 smooth_lenses!(X)
+    15.2 smooth_lenses!(X,G)
+    15.3 smooth_lenses!(X,G,labelsto_eval)
+    15.4 smooth_lenses!(gnlobject)
+
+
+
+This code can be used to analyze embeddings from 3 different procedures : -
 
 1. Diffusion - analyzepredictions(G,X;kwargs...) 
     _Required_ arguments:

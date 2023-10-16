@@ -1,7 +1,7 @@
 
 module mainalg
 
-using SparseArrays, Statistics, DataStructures, MatrixNetworks, Plots, LinearAlgebra, JLD2, StatsBase
+using SparseArrays, Statistics, DataStructures, MatrixNetworks, LinearAlgebra, JLD2, StatsBase
 
 
 #this structure holds the objects that will not change throughout the program
@@ -730,6 +730,9 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
               A.node_colors_mixing[key] = mean(A.sample_colors_mixing[component])
           end
      end
+
+     return A.node_colors_class, A.node_colors_class_truth,A.node_colors_error,A.node_colors_uncertainty,A.node_colors_mixing,
+            A.sample_colors_mixing,A.sample_colors_error,A.sample_colors_uncertainty
 end 
 
 
@@ -869,7 +872,7 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
      return extra_edges
 end
 
-function get_reebgroups!(A::sGTDA;verbose=false)
+function reebgroups!(A::sGTDA;verbose=false)
      nodes = []
      A.node2reeb = DefaultDict{Int,Vector{Float64}}(Vector{Float64})
      A.reeb2node = [[] for _ in range(1,length(A.filtered_nodes))]
@@ -966,7 +969,7 @@ function gtdagraph!(A::gnl;overlap = 0.025,max_split_size = 100,min_group_size=5
 
      
      extra_edges = build_reeb_graph!(A,gtda,M,reeb_component_thd=min_component_group,max_iters=max_merge_iters,is_merging=is_merging,edges_dists=edges_dists,verbose=verbose)
-     get_reebgroups!(gtda,verbose=verbose)
+     reebgroups!(gtda,verbose=verbose)
      gtda.reebtime = time()-this
      if verbose
           @info "Building reebgraph took time " gtda.reebtime

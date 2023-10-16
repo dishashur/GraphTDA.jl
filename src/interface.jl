@@ -41,7 +41,7 @@ function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_t
 end
 
 
-function getreeberrors(A::sGTDA)
+function reeberrorsof(A::sGTDA)
     if A.node_colors_class !== nothing
         return A.node_colors_class,A.node_colors_class_truth,A.node_colors_error,A.node_colors_uncertainty,A.node_colors_mixing
     else
@@ -49,7 +49,7 @@ function getreeberrors(A::sGTDA)
     end
 end
 
-function getnodeerrors(A::sGTDA)
+function nodeerrorsof(A::sGTDA)
     if A.sample_colors_mixing !== nothing
         return A.sample_colors_mixing, A.sample_colors_uncertainty, A.sample_colors_error
     else
@@ -59,47 +59,41 @@ function getnodeerrors(A::sGTDA)
 end
 
 #reeb composition gives the number of nodes in comprising a reeb node
-getreebcomposition(A::sGTDA) = A.reeb2node
-getreebcomposition(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getreebcomposition(X,G=A;kwargs...)
-function getreebcomposition(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
-    A = analyzepredictions(X;G=G,kwargs...)
-    return getreebcomposition(A)
+reebcompositionof(A::sGTDA) = A.reeb2node
+reebcompositionof(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = reebcompositionof(X,G=A;kwargs...)
+function reebcompositionof(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+    return reebcompositionof(analyzepredictions(X;G=G,kwargs...))
 end
 
 
 #node composition gives the reeb node indices that each node is a part of
-getnodecomposition(A::sGTDA) = A.node2reeb
-getnodecomposition(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getnodecomposition(X,G=A;kwargs...)
-function getnodecomposition(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
-    A = analyzepredictions(X;G=G,kwargs...)
-    return getnodecomposition(A)
+nodecompositionof(A::sGTDA) = A.node2reeb
+nodecompositionof(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = nodecompositionof(X,G=A;kwargs...)
+function nodecompositionof(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+    return nodecompositionof(analyzepredictions(X;G=G,kwargs...))
 end
 
 #reeb graph is the graph made up of the reeb nodes
-getreebgraph(A::sGTDA) = A.G_reeb
-getreebgraph(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getreebgraph(X,G=A;kwargs...)
-function getreebgraph(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
-    A = analyzepredictions(X;G=G,kwargs...)
-    return getreebgraph(A)
+reebgraphof(A::sGTDA) = A.G_reeb
+reebgraphof(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = reebgraphof(X,G=A;kwargs...)
+function reebgraphof(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+    return reebgraphof(analyzepredictions(X;G=G,kwargs...))
 end
 
 
 #projected graph is the reeb graph expanded to the node view
-getprojectedgraph(A::sGTDA) = A.A_reeb
-getprojectedgraph(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = getprojectedgraph(X,G=A;kwargs...)
-function getprojectedgraph(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
-    A = analyzepredictions(X;G=G,kwargs...)
-    return getprojectedgraph(A)
+projectedgraphof(A::sGTDA) = A.A_reeb
+projectedgraphof(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = projectedgraphof(X,G=A;kwargs...)
+function projectedgraphof(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+    return projectedgraphof(analyzepredictions(X;G=G,kwargs...))
 end
 
 
-getcomputetime(A::sGTDA) = A.reebtime
+computetimeof(A::sGTDA) = A.reebtime
 
 function savereebs(A::sGTDA,filepath::String)
-    pro_graph = getprojectedgraph(A)
-    i,j,v = findnz(pro_graph)
-    reebcomp = getreebcomposition(A)
-    reebgraph = getreebgraph(A)  
-    p,q,r = findnz(reebgraph)
+    i,j,v = findnz(projectedgraphof(A))
+    reebcomp = reebcompositionof(A)
+    p,q,r = findnz(reebgraphof(A))
     save("$filepath.jld2",Dict("reebgraph"=>(p,q,r),"reebcomps"=>reebcomp,"projected"=>(i,j,v)))
 end
