@@ -1,6 +1,7 @@
 
 module GraphTDA
 
+
 using SparseArrays, Statistics, DataStructures, MatrixNetworks, LinearAlgebra, JLD2, StatsBase
 include("mainalg.jl")
 export gnl, gtdagraph!, sGTDA, toy, canonicalize_graph, error_prediction!, smooth_lenses!
@@ -9,4 +10,5 @@ export gnl, gtdagraph!, sGTDA, toy, canonicalize_graph, error_prediction!, smoot
 include("interface.jl")
 export analyzepredictions, reeberrorsof, nodeerrorsof, reebcompositionof, nodecompositionof, reebgraphof, 
 projectedgraphof, computetimeof, savereebs
+
 end

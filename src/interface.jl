@@ -2,7 +2,7 @@
 
 using .mainalg
 
-analyzepredictions(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = analyzepredictions(X,G=A;kwargs...)
+analyzepredictions(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = analyzepredictions(X,G=A;kwargs...)
 
 function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_to_eval = [i for i in range(1,size(X,2))],labels=[],
     extra_lens=nothing,alpha=0.5,batch_size=10000,known_nodes=nothing,knn=5,nsteps_preprocess=5,
@@ -18,7 +18,7 @@ function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_t
      degree_normalize_preprocess=degree_normalize_preprocess,verbose=verbose)
 
 
-    if length(labels) > 0
+    if length(A.origlabels) > 0
         train_nodes = [i for i in range(1,trainlen)]
         val_nodes = []
         test_nodes = [i for i in range(trainlen+1,trainlen+testlen)]
@@ -29,15 +29,14 @@ function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_t
         test_mask = zeros(size(A.G,1))
         test_mask[test_nodes] .= 1
 
-	error_prediction!(A,gtda,train_mask = train_mask,val_mask = val_mask,nsteps=nsteps_mixing,alpha = alpha,known_nodes=known_nodes,degree_normalize=degree_normalize_mixing)
+	    error_prediction!(A,gtda,train_mask = train_mask,val_mask = val_mask,nsteps=nsteps_mixing,alpha = alpha,known_nodes=known_nodes,degree_normalize=degree_normalize_mixing)
         
-	@info "prediction error" sum(gtda.sample_colors_mixing)
-
-     else
-         @info "Original labels are missing, unable to calculate prediction error"
-     end
-
-    return gtda
+	    @info "prediction error" sum(gtda.sample_colors_mixing)
+    return gtda, A.labels
+    else
+        @info "Original labels are missing, unable to calculate prediction error"
+        return gtda
+    end
 end
 
 
@@ -60,31 +59,31 @@ end
 
 #reeb composition gives the number of nodes in comprising a reeb node
 reebcompositionof(A::sGTDA) = A.reeb2node
-reebcompositionof(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = reebcompositionof(X,G=A;kwargs...)
-function reebcompositionof(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+reebcompositionof(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = reebcompositionof(X,G=A;kwargs...)
+function reebcompositionof(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),kwargs...) 
     return reebcompositionof(analyzepredictions(X;G=G,kwargs...))
 end
 
 
 #node composition gives the reeb node indices that each node is a part of
 nodecompositionof(A::sGTDA) = A.node2reeb
-nodecompositionof(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = nodecompositionof(X,G=A;kwargs...)
-function nodecompositionof(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+nodecompositionof(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = nodecompositionof(X,G=A;kwargs...)
+function nodecompositionof(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),kwargs...) 
     return nodecompositionof(analyzepredictions(X;G=G,kwargs...))
 end
 
 #reeb graph is the graph made up of the reeb nodes
 reebgraphof(A::sGTDA) = A.G_reeb
-reebgraphof(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = reebgraphof(X,G=A;kwargs...)
-function reebgraphof(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+reebgraphof(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = reebgraphof(X,G=A;kwargs...)
+function reebgraphof(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),kwargs...) 
     return reebgraphof(analyzepredictions(X;G=G,kwargs...))
 end
 
 
 #projected graph is the reeb graph expanded to the node view
 projectedgraphof(A::sGTDA) = A.A_reeb
-projectedgraphof(X::Matrix{Float64},A::SparseMatrixCSC{Float64, Int64};kwargs...) = projectedgraphof(X,G=A;kwargs...)
-function projectedgraphof(X::Matrix{Float64};G = sparse([],[],[]),kwargs...) 
+projectedgraphof(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = projectedgraphof(X,G=A;kwargs...)
+function projectedgraphof(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),kwargs...) 
     return projectedgraphof(analyzepredictions(X;G=G,kwargs...))
 end
 

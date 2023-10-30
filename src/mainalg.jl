@@ -7,14 +7,14 @@ using SparseArrays, Statistics, DataStructures, MatrixNetworks, LinearAlgebra, J
 #this structure holds the objects that will not change throughout the program
 struct gnl
      G::SparseMatrixCSC{Float64, Int64}
-     preds::Matrix{Float64} 
+     preds::Union{Matrix{Float64},Matrix{Float32}} 
      origlabels::Vector{Any} 
-     labels::Vector{Int64} 
+     labels::Vector{Any} 
      labels_to_eval::Vector{Int64} 
  end
  
  
- function _intlzrbgrph(X::Matrix{Float64};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],knn=5,batch_size=256)
+ function _intlzrbgrph(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],knn=5,batch_size=256)
      if length(findnz(G)[3]) == 0
          G = canonicalize_graph(X,knn,batch_size)
      end
@@ -47,14 +47,15 @@ struct gnl
      node2reeb::DefaultDict{Int64, Vector{Float64}, DataType}
      reebtime::Float64
  
-     node_colors_class::Matrix{Float64}
-     node_colors_class_truth::Matrix{Float64}
+     node_colors_class::Union{Matrix{Float64},Matrix{Float32}}
+     node_colors_class_truth::Union{Matrix{Float64},Matrix{Float32}}
      node_colors_error::Vector{Float64}
      node_colors_uncertainty::Vector{Float64}
      node_colors_mixing::Vector{Float64}
      sample_colors_mixing::Vector{Float64}
-     sample_colors_uncertainty::Matrix{Float64}
+     sample_colors_uncertainty::Union{Matrix{Float64},Matrix{Float32}}
      sample_colors_error::Vector{Float64}
+     numericlabels::Vector{Any}
 
      sGTDA() = new()
  end
@@ -143,9 +144,9 @@ function _is_overlap(x,y)
 end
 
 
-smooth_lenses!(X::Matrix{Float64},G::SparseMatrixCSC{Float64, Int64},labels_to_eval = Vector{Int64};kwargs...) = smooth_lenses!(X,G=G,labels_to_eval=labels_to_eval;kwargs...)
-smooth_lenses!(X::Matrix{Float64},G::SparseMatrixCSC{Float64, Int64};kwargs...) = smooth_lenses!(X,G=G;kwargs...)
-function smooth_lenses!(X::Matrix{Float64};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],kwargs...)
+smooth_lenses!(X::Union{Matrix{Float64},Matrix{Float32}},G::SparseMatrixCSC{Float64, Int64},labels_to_eval = Vector{Int64};kwargs...) = smooth_lenses!(X,G=G,labels_to_eval=labels_to_eval;kwargs...)
+smooth_lenses!(X::Union{Matrix{Float64},Matrix{Float32}},G::SparseMatrixCSC{Float64, Int64};kwargs...) = smooth_lenses!(X,G=G;kwargs...)
+function smooth_lenses!(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],kwargs...)
      A = _intlzrbgrph(X,G=G,labels_to_eval = labels_to_eval)
      return smooth_lenses!(A;kwargs...)
 end
@@ -671,7 +672,8 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
 
      
      #=now obj.origlabels has the original labels and obj.labels has the numeric conversion
-     --- To use the  numeric form, we need to access obj.labels[obj.origlabels[i]]
+     --- To use the numeric form, we need to access findall(i->i==obj.origlabels[data],obj.labels)
+     --- To use the actual label, access labels[findall(i->i==obj.origlabels[data],obj.labels)]
      =#
 
 
@@ -679,7 +681,7 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
       
      if known_nodes !== nothing
           for node in known_nodes
-               training_node_labels[node,findall(i->i==obj.origlabels[node],labels)[1]] = 1
+               training_node_labels[node,findall(i->i==obj.origlabels[node],obj.labels)[1]] = 1
           end
      end
      total_mixing_all = copy(training_node_labels)
@@ -713,12 +715,17 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
           A.sample_colors_uncertainty[i] = uncertainty[i]
      end
      
-     
+
+     #=findall returns the index (used here as the numeric conversion in case the original label is not numeric)
+     so StatsBase.countmap has in keys the numerical equivalent of the actual label
+     the actual label needs to read off as label[index]
+     We return this numeric equivalent as the second argument in analyzepredictions
+     =#
      for key in keys(A.final_components_filtered)
           component = A.final_components_filtered[key]
 	  component_label_cnt = StatsBase.countmap([findall(x->x==obj.origlabels[e],obj.labels) for e in component][1])
           for l in keys(component_label_cnt)
-              	A.node_colors_class_truth[key,l+1] = component_label_cnt[l]
+              	A.node_colors_class_truth[key,l] = component_label_cnt[l]
           end
           component_label_cnt = StatsBase.countmap(pre_labels[component])
           for l in keys(component_label_cnt)
