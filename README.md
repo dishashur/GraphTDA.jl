@@ -5,6 +5,15 @@
 
 This is a Julia based implementation for the framework introduced in [Topological Structure of Complex Prediction](https://arxiv.org/abs/2207.14358). 
 
+This is an example on the FashionMNIST dataset. The figures show the reeb graph and the projected graph corresponding to data points labelled as Ankle boots in the original dataset and coloured according to their predicted labels. As pointed out in the paper, some data points close to those marked as Ankle Boots, have been predicted as something else - thus hinting at a problem in the model that generates the lens or the dataset itself.
+
+![alt text](https://github.com/dishashur/GraphTDA.jl/blob/main/src/jureebpredicted-Ankle_boot.png?raw=true)
+
+![alt text](https://github.com/dishashur/GraphTDA.jl/blob/main/src/jureeboriginal-Ankle_boot.png?raw=true)
+
+![alt text](https://github.com/dishashur/GraphTDA.jl/blob/main/src/juprojected-Ankle_boot.png?raw=true)
+
+
 For X := Prediction matrix, G: Input graph, A: sGTDA object, this code offers the following different functions. 
 
 1. analyzepredictions - Outputs the (1) prediction error if labels are provided, (2) the sGTDA object containing all the details of the structure

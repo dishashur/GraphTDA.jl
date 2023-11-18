@@ -1,7 +1,7 @@
 
 module mainalg
 
-using SparseArrays, Statistics, DataStructures, MatrixNetworks, LinearAlgebra, JLD2, StatsBase
+using JSON, SparseArrays, Statistics, DataStructures, MatrixNetworks, LinearAlgebra, JLD2, StatsBase
 
 
 #this structure holds the objects that will not change throughout the program
@@ -109,8 +109,9 @@ function canonicalize_graph(X,knn,batch_size;thd=0,batch_training=false,batch_si
 	  if batch_training
                distances,batch_indices = feat_sim_batched(X[start_i:end_i,:],X,knn+1,batch_size_training)
           else
-               distances,batch_indices = feat_sim(X[start_i:end_i,:],transpose(X),knn+1)
+	       distances,batch_indices = feat_sim(X[start_i:end_i,:],transpose(X),knn+1)
           end
+	 
           for xi in range(1,size(batch_indices,1))
                cnt = 0
                for (j,xj) in enumerate(batch_indices[xi])
@@ -127,7 +128,7 @@ function canonicalize_graph(X,knn,batch_size;thd=0,batch_training=false,batch_si
     n = size(X,1)
     A_knn = sparse(ei,ej,ones(length(ei)),n,n)
     A_knn = make_graph_symmetric(A_knn,n)
-    return A_knn
+    return A_knn 
 end
 
 function _is_overlap(x,y)
@@ -174,6 +175,7 @@ function smooth_lenses!(A::gnl;alpha=0.5,nsteps=3,normalize=true,extra_lens=noth
           total_mixing_all = hcat(total_mixing_all,extra_lens)
           init_mixing = hcat(init_mixing,extra_lens)
      end
+     
      for _ in range(1,nsteps)
          total_mixing_all = (1-alpha)*init_mixing + alpha*(An*total_mixing_all)
      end
@@ -457,7 +459,7 @@ function find_reeb_nodes!(A::sGTDA,M,Ar;filter_cols=nothing,nbins_pyramid=2,over
      end
      @info "After the while loop num_total_components" num_total_components
      @info "num_final_components" num_final_components
-	#_remove_duplicate_components
+     #removing duplicate components
      all_c = sort(unique!([sort(final_components[key]) for key in keys(final_components)]))
      A.final_components_unique = Dict(i=>c for (i,c) in enumerate(all_c))
 end
@@ -498,12 +500,14 @@ function filter_tiny_components!(A::sGTDA,Ar;node_size_thd=10,verbose=false)
           end
      end
      nodes = unique!(sort(nodes))
+
+     @show "done with finding reeb unique reeb nodes"
      @info "Number of samples included after filtering:" length(nodes)
 end
 
 
 
-function merge_reeb_nodes!(A::sGTDA,Ar,M;niters=1,node_size_thd=10,edges_dists=[])
+function merge_reeb_nodes!(A::sGTDA,Ar,M;niters=1,node_size_thd=10,edges_dists=[],verbose = false)
      num_components = length(A.final_components_filtered) + length(A.final_components_removed)
      function worker(tmp_edges_dists,nodes,k1)
           closest_neigh = -1
@@ -555,12 +559,12 @@ function merge_reeb_nodes!(A::sGTDA,Ar,M;niters=1,node_size_thd=10,edges_dists=[
                     end
                end
           end
+          
           merging_map = sparse(merging_ei,merging_ej,ones(length(merging_ei)),num_components,num_components)
           merging_map = make_graph_symmetric(merging_map,num_components)
-          merging_tiny_nodes!(A,merging_map,node_size_thd=node_size_thd,verbose=true)
+	  merging_tiny_nodes!(A,merging_map,node_size_thd=node_size_thd,verbose=verbose)
           @info "After merging tiny components " length(A.final_components_filtered)
      end
-
 end
 
 
@@ -573,7 +577,7 @@ function merging_tiny_nodes!(A::sGTDA,merging_map;node_size_thd=10,verbose=false
           @info "number of reeb components to merge"  length(components_to_merge)
      end
      for component_to_merge in components_to_merge
-          component_to_connect = component_to_merge[1]
+	  component_to_connect = component_to_merge[1]
           for k in component_to_merge
                if k in keys(A.final_components_filtered)
                     component_to_connect = k
@@ -637,9 +641,9 @@ function merging_tiny_nodes!(A::sGTDA,merging_map;node_size_thd=10,verbose=false
           append!(nodes,val)
      end
      nodes = sort(unique!(nodes))
-     if verbose
+     #if verbose
           print("Number of samples included after merging:", length(nodes))
-     end
+     #end
 end
 
 
@@ -653,11 +657,9 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
           known_mask_np = zeros(size(Ar,1))
           known_mask_np[known_nodes] = 1.0
      end
-
      if pre_labels === nothing
           pre_labels = [i[2] for i in argmax(obj.preds,dims=2)]
      end
-
      max_key = maximum([key for key in keys(A.final_components_filtered)])
      
      A.node_colors_class = zeros(max_key,size(obj.preds,2))
@@ -681,7 +683,7 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
       
      if known_nodes !== nothing
           for node in known_nodes
-               training_node_labels[node,findall(i->i==obj.origlabels[node],obj.labels)[1]] = 1
+	  	     training_node_labels[node,[i for i=1:length(obj.labels) if obj.labels[i] == obj.origlabels[node]]] .= 1
           end
      end
      total_mixing_all = copy(training_node_labels)
@@ -703,18 +705,17 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
      for _ in range(1,nsteps)
           total_mixing_all = (1-alpha)*training_node_labels + alpha*(An*total_mixing_all)
      end
-     
+
      for i in range(1,size(total_mixing_all,1))
           if sum(total_mixing_all[i,:]) > 0
-               d = total_mixing_all[i,pre_labels[i]]/sum(total_mixing_all[i,:])
-               A.sample_colors_mixing[i] = 1-d
+		  d = total_mixing_all[i,[tempi for tempi=1:length(obj.labels) if obj.labels[tempi] == pre_labels[i]]][1]/sum(total_mixing_all[i,:])
+	       A.sample_colors_mixing[i] = 1-d
           else
                A.sample_colors_mixing[i] = uncertainty[i]
           end
 	  A.sample_colors_error[i] = 1-(pre_labels[i] == findall(x->x==obj.origlabels[i],obj.labels)[1])
           A.sample_colors_uncertainty[i] = uncertainty[i]
      end
-     
 
      #=findall returns the index (used here as the numeric conversion in case the original label is not numeric)
      so StatsBase.countmap has in keys the numerical equivalent of the actual label
@@ -756,11 +757,11 @@ function gives_removed_components(A::sGTDA, A_tmp, size_thd, reeb_component_thd)
     A.filtered_nodes = []
     for c in components_left1
         if length(c) > reeb_component_thd
-            append!(A.filtered_nodes,c)
+		append!(A.filtered_nodes,c)
         else
             for node in c 
                 if node in keys(A.final_components_filtered)
-                        append!(components_removed,c)
+			append!(components_removed,[c])
                         break
                 end
             end
@@ -794,6 +795,7 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
      A_tmp = sparse(all_edge_index[1],all_edge_index[2],ones(length(all_edge_index[1])),reeb_dim,reeb_dim)
      A_tmp = make_graph_symmetric(A_tmp,reeb_dim)
      components_removed = gives_removed_components(A, A_tmp, 0, reeb_component_thd)
+
      curr_iter = 0
      modified = true
      if verbose
@@ -844,23 +846,29 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
           components_removed = gives_removed_components(A, A_tmp, 0, reeb_component_thd)
      end
      
+
+   
+
      A.filtered_nodes = sort(unique!(intersect(A.filtered_nodes,[k for k in keys(A.final_components_filtered)])))
-     
+    
      A.greeb_orig = A_tmp
+     
+
      A.G_reeb  = A.greeb_orig[A.filtered_nodes,:][:,A.filtered_nodes]
 
      #now that we have the gtda graph - we see the projected graph A_reeb
      reeb_components = find_components(A.greeb_orig,size_thd=0)[2]
      ei,ej = [],[]
      Ar = obj.G
+    
      for reeb in reeb_components
           for rnode in reeb
                if rnode in keys(A.final_components_filtered)
                     nodes = A.final_components_filtered[rnode]
-                    nodes = sort(unique!(nodes))
+                    nodes = unique!(nodes)
                     mapping = Dict(i => k for (i,k) in enumerate(nodes))
-                    sub_A = Ar[nodes,:][:,nodes]
-                    temp = findnz(sub_A)
+		    sub_A = Ar[nodes,:][:,nodes]
+		    temp = findnz(sub_A)
                     for (i,j) in zip(temp[1],temp[2])
                          append!(ei,mapping[i])
                          append!(ej,mapping[j])
@@ -869,8 +877,8 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
           end
      end
      if extra_edges !== nothing
-          append!(ei,extra_edges[1])
-          append!(ej,extra_edges[2])
+	  append!(ei,extra_edges[1])
+       append!(ej,extra_edges[2])
      end
      A.A_reeb = sparse(ei,ej,ones(length(ei)),size(Ar,1),size(Ar,2))
      A.A_reeb = make_graph_symmetric(A.A_reeb,size(Ar,1))
@@ -921,9 +929,8 @@ function connect_the_components(A::sGTDA,closest_neigh;verbose=false)
                     append!(sizes,length(A.final_components_removed[c]))
                end
           end
-          @info "argmin(sizes)" argmin(sizes)
+          
 	  component_to_connect = components_to_connect[argmin(sizes)]
-	  @info "component_to_connect" component_to_connect
 	  modified = true
      end
      return component_to_connect,modified
@@ -968,19 +975,20 @@ function gtdagraph!(A::gnl;overlap = 0.025,max_split_size = 100,min_group_size=5
 
      edges_dists = select_merge_edges(A.G,M,merge_thd = merge_thd)
 
-     merge_reeb_nodes!(gtda,Ar,M,niters=max_merge_iters,node_size_thd=min_group_size,edges_dists=edges_dists)
+     merge_reeb_nodes!(gtda,Ar,M,niters=max_merge_iters,node_size_thd=min_group_size,edges_dists=edges_dists,verbose = verbose)
 
      if verbose
           @info "After merging " length(gtda.final_components_filtered)
      end
-
      
+
      extra_edges = build_reeb_graph!(A,gtda,M,reeb_component_thd=min_component_group,max_iters=max_merge_iters,is_merging=is_merging,edges_dists=edges_dists,verbose=verbose)
+     
      reebgroups!(gtda,verbose=verbose)
      gtda.reebtime = time()-this
-     if verbose
+     #if verbose
           @info "Building reebgraph took time " gtda.reebtime
-     end
+     #end
       
     return gtda
 

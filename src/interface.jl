@@ -1,5 +1,3 @@
-
-
 using .mainalg
 
 analyzepredictions(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = analyzepredictions(X,G=A;kwargs...)
@@ -94,5 +92,8 @@ function savereebs(A::sGTDA,filepath::String)
     i,j,v = findnz(projectedgraphof(A))
     reebcomp = reebcompositionof(A)
     p,q,r = findnz(reebgraphof(A))
-    save("$filepath.jld2",Dict("reebgraph"=>(p,q,r),"reebcomps"=>reebcomp,"projected"=>(i,j,v)))
+    reeblabels = reeberrorsof(A)[1]
+    reebtruelabels = reeberrorsof(A)[2]
+    save("$filepath.jld2",Dict("reebgraph"=>(p,q,r),"reebcomps"=>reebcomp,"projected"=>(i,j,v),"error"=>A.sample_colors_mixing,
+    "reebcolors"=>reeblabels, "givencolors"=>reebtruelabels,"sample_colors_mixing"=> A.sample_colors_mixing))
 end
