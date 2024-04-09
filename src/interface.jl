@@ -13,7 +13,7 @@ function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_t
     gtda = gtdagraph!(A,max_split_size = max_split_size,overlap = overlap,min_group_size=min_group_size,min_component_group = min_component_group
      ,alpha = alpha,nsteps_preprocess=nsteps_preprocess,extra_lens=extra_lens,is_merging=is_merging,split_criteria=split_criteria,split_thd=split_thd,
      is_normalize=is_normalize,is_standardize=is_standardize,merge_thd=merge_thd,max_split_iters=max_split_iters,max_merge_iters=max_merge_iters,
-     degree_normalize_preprocess=degree_normalize_preprocess,verbose=verbose)
+     degree_normalize_preprocess=degree_normalize_preprocess,verbose=verbose);
 
 
     if length(A.origlabels) > 0
@@ -33,7 +33,7 @@ function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_t
     return gtda, A.labels
     else
         @info "Original labels are missing, unable to calculate prediction error"
-        return gtda
+	return gtda,[]
     end
 end
 
@@ -49,6 +49,7 @@ end
 function nodeerrorsof(A::sGTDA)
     if A.sample_colors_mixing !== nothing
         return A.sample_colors_mixing, A.sample_colors_uncertainty, A.sample_colors_error
+        @show sum(A.sample_colors_mixing)
     else
         @info "No labels provided, unable to calculate prediction error"
     end
@@ -89,11 +90,18 @@ end
 computetimeof(A::sGTDA) = A.reebtime
 
 function savereebs(A::sGTDA,filepath::String)
+    x,y,z = findnz(A.greeb_orig)
     i,j,v = findnz(projectedgraphof(A))
     reebcomp = reebcompositionof(A)
     p,q,r = findnz(reebgraphof(A))
+    if "sample_colors_mixing" in fieldnames(typeof(A)) 
     reeblabels = reeberrorsof(A)[1]
     reebtruelabels = reeberrorsof(A)[2]
-    save("$filepath.jld2",Dict("reebgraph"=>(p,q,r),"reebcomps"=>reebcomp,"projected"=>(i,j,v),"error"=>A.sample_colors_mixing,
-    "reebcolors"=>reeblabels, "givencolors"=>reebtruelabels,"sample_colors_mixing"=> A.sample_colors_mixing))
+    save("$filepath.jld2",Dict("reebgraph"=>(p,q,r),"reebcomps"=>reebcomp,"projected"=>(i,j,v),"greeb_orig"=>(x,y,z),"error"=>[A.sample_colors_mixing if "sample_colors_mixing" in fieldnames(typeof(A)) else [] end ],"reebcolors"=>reeblabels, "givencolors"=>reebtruelabels,"sample_colors_mixing"=> [A.sample_colors_mixing if "sample_colors_mixing" in fieldnames(typeof(A)) else [] end ]))
+    else
+    reeblabels = []
+    reebtruelabels = []
+    save("$filepath.jld2",Dict("reebgraph"=>(p,q,r),"reebcomps"=>reebcomp,"projected"=>(i,j,v),"greeb_orig"=>(x,y,z)))
+    end
+    
 end

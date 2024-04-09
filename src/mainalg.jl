@@ -14,17 +14,17 @@ struct gnl
  end
  
  
- function _intlzrbgrph(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],knn=5,batch_size=256)
+ function _intlzrbgrph(X::Matrix{T};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],knn=5,batch_size=256) where T
      if length(findnz(G)[3]) == 0
-         G = canonicalize_graph(X,knn,batch_size)
+         G = canonicalize_graph(X;knn = knn,batch_size=batch_size)
      end
      #convert any form of labels into numeric labels 
      origlabels = copy(labels)
      if length(origlabels)!=0
          ulabs = unique(origlabels)
-         labels = zeros(size(ulabs))
-         for i in range(1,length(ulabs))
-              labels[i] = ulabs[i]
+	 labels = []
+         for i in ulabs
+	 	push!(labels,i)
          end
     end
     return gnl(G,X,origlabels,labels,labels_to_eval)
@@ -100,7 +100,7 @@ function feat_sim_batched(features,train_features,k,batch_size)
 end
 
 
-function canonicalize_graph(X,knn,batch_size;thd=0,batch_training=false,batch_size_training=50000)
+function canonicalize_graph(X;knn=6,batch_size=20,thd=0,batch_training=false,batch_size_training=50000)
     ei,ej = [],[]
     for i in Vector(1:batch_size:size(X,1))
           start_i = i
@@ -145,7 +145,7 @@ function _is_overlap(x,y)
 end
 
 
-smooth_lenses!(X::Union{Matrix{Float64},Matrix{Float32}},G::SparseMatrixCSC{Float64, Int64},labels_to_eval = Vector{Int64};kwargs...) = smooth_lenses!(X,G=G,labels_to_eval=labels_to_eval;kwargs...)
+smooth_lenses!(X::Union{Matrix{Float64},Matrix{Float32}},G::SparseMatrixCSC{Float64, Int64},labels_to_eval::Vector{Int64};kwargs...) = smooth_lenses!(X,G=G,labels_to_eval=labels_to_eval;kwargs...)
 smooth_lenses!(X::Union{Matrix{Float64},Matrix{Float32}},G::SparseMatrixCSC{Float64, Int64};kwargs...) = smooth_lenses!(X,G=G;kwargs...)
 function smooth_lenses!(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],kwargs...)
      A = _intlzrbgrph(X,G=G,labels_to_eval = labels_to_eval)
@@ -243,7 +243,7 @@ function filtering(M,filter_cols;overlap=(0.05,0.05),nbins=2,lbs=nothing,ubs=not
           pre_ubs[i] = ubs[col]
           bin_sizes[i] = (ubs[col]-lbs[col])/nbins
      end
-
+     @show length(filter_cols)
 	for (j,col) in enumerate(filter_cols)
           bin_size = bin_sizes[j]
           inner_id = Int64.(floor.((M[:,col] .- pre_lbs[j]) ./ bin_size)) .+ 1
@@ -323,7 +323,8 @@ function graph_clustering(G,bins;component_size_thd=10)
 	     for component in components
 	       push!(graph_clusters[key],[points[node] for node in component])
           end
-     end    
+     end   
+     @show length(graph_clusters) 
      return graph_clusters
 end
 
@@ -343,7 +344,7 @@ function grouping(component_records,Ar,M,slice_columns,curr_level)
           append!(all_M_sub,[M_sub])
      end 
      groupingtime = time() - this1
-     @info "Grouping took  " groupingtime
+     #@info "Grouping took  " groupingtime
      return all_G_sub, all_M_sub
 end
 
@@ -447,7 +448,7 @@ function find_reeb_nodes!(A::sGTDA,M,Ar;filter_cols=nothing,nbins_pyramid=2,over
           end
      end #end of while loop that check length(curr_level)>0
      splittime = time() - splitstart
-     @info "Splitting took time " splittime
+     #@info "Splitting took time " splittime
      if length(curr_level) > 0
           if iters >= max_iters
                @info "Stopped early, try increasing max number of iterations for splitting"
@@ -464,7 +465,7 @@ function find_reeb_nodes!(A::sGTDA,M,Ar;filter_cols=nothing,nbins_pyramid=2,over
      A.final_components_unique = Dict(i=>c for (i,c) in enumerate(all_c))
 end
 
-function filter_tiny_components!(A::sGTDA,Ar;node_size_thd=10,verbose=false)
+function filter_tiny_components!(A::sGTDA,Ar;node_size_thd=10,verbose=false,smallest_component = 50)
      nodes = []
      for val in values(A.final_components_unique)
           for node in val
@@ -472,7 +473,6 @@ function filter_tiny_components!(A::sGTDA,Ar;node_size_thd=10,verbose=false)
           end
      end
      nodes = unique!(sort(nodes))
-     @info "Number of samples included before filtering:" length(nodes)
      all_keys = keys(A.final_components_unique)
      filtered_keys = []
      removed_keys = []
@@ -501,8 +501,12 @@ function filter_tiny_components!(A::sGTDA,Ar;node_size_thd=10,verbose=false)
      end
      nodes = unique!(sort(nodes))
 
-     @show "done with finding reeb unique reeb nodes"
-     @info "Number of samples included after filtering:" length(nodes)
+     @show "done with filtering out small nodes"
+     if length(nodes) == 0
+          @warn "The population in each reeb node should lie in [min_group_size, max_split_size]. Given bound 
+          is [$(node_size_thd),$(smallest_component)]"
+     end
+    
 end
 
 
@@ -598,7 +602,7 @@ function merging_tiny_nodes!(A::sGTDA,merging_map;node_size_thd=10,verbose=false
                          setdiff!(A.node_assignments_tiny_components[node],[k])
                     end
                else
-                    append!(new_component,nodes)
+                    append!(new_component,nodes) #these are the actual graph nodes
                end
           end
           if !(component_to_connect in keys(A.final_components_filtered))
@@ -686,6 +690,7 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
 	  	     training_node_labels[node,[i for i=1:length(obj.labels) if obj.labels[i] == obj.origlabels[node]]] .= 1
           end
      end
+
      total_mixing_all = copy(training_node_labels)
      
      degs = sum(A.A_reeb, dims = 1)
@@ -724,7 +729,7 @@ function error_prediction!(obj::gnl,A::sGTDA;alpha=0.5,nsteps=10,pre_labels=noth
      =#
      for key in keys(A.final_components_filtered)
           component = A.final_components_filtered[key]
-	  component_label_cnt = StatsBase.countmap([findall(x->x==obj.origlabels[e],obj.labels) for e in component][1])
+	  component_label_cnt = StatsBase.countmap([obj.labels[tempi] for tempi=1:length(obj.labels) for e in component if obj.labels[tempi] == obj.origlabels[e]])
           for l in keys(component_label_cnt)
               	A.node_colors_class_truth[key,l] = component_label_cnt[l]
           end
@@ -771,7 +776,7 @@ function gives_removed_components(A::sGTDA, A_tmp, size_thd, reeb_component_thd)
 end
 
 
-function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=10,is_merging=true,edges_dists=nothing,verbose=false)
+function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=1,max_iters=10,is_merging=true,edges_dists=nothing,verbose=false)
      all_edge_index = [[], []]
      extra_edges = [[],[]]
      @info "Building reeb graph"
@@ -855,7 +860,9 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=10,max_iters=1
      
 
      A.G_reeb  = A.greeb_orig[A.filtered_nodes,:][:,A.filtered_nodes]
-
+     if A.G_reeb.nzval == []
+          @warn "The filtered reeb graph is empty; you might want to decrease min_component_group. Default is 1"
+     end     
      #now that we have the gtda graph - we see the projected graph A_reeb
      reeb_components = find_components(A.greeb_orig,size_thd=0)[2]
      ei,ej = [],[]
@@ -948,7 +955,7 @@ function select_merge_edges(A_knn,M;merge_thd=1.0)
 	end
 	e = Float64.(e)
      selected_edges = [i for i=1:length(e) if e[i] < merge_thd]
-     @info "number of selected edges" length(selected_edges)
+     #@info "number of selected edges" length(selected_edges)
      edges_dists = sparse(ei[selected_edges],ej[selected_edges],e[selected_edges],n,n)
      edges_dists = edges_dists+edges_dists'
      return edges_dists
@@ -967,7 +974,7 @@ function gtdagraph!(A::gnl;overlap = 0.025,max_split_size = 100,min_group_size=5
           @info "Initial number of reebnodes found " length(gtda.final_components_unique)
      end
 
-     filter_tiny_components!(gtda,Ar,node_size_thd=min_group_size)
+     filter_tiny_components!(gtda,Ar,node_size_thd=min_group_size,smallest_component=max_split_size)
 
      if verbose
           @info "After filtering tiny components " length(gtda.final_components_filtered)

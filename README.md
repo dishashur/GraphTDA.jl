@@ -5,16 +5,36 @@
 
 This is a Julia based implementation for the framework introduced in [Topological Structure of Complex Prediction](https://arxiv.org/abs/2207.14358). 
 
-This is an example on the FashionMNIST dataset. The figures show the reeb graph and the projected graph corresponding to data points labelled as Ankle boots in the original dataset and coloured according to their predicted labels. As pointed out in the paper, some data points close to those marked as Ankle Boots, have been predicted as something else - thus hinting at a problem in the model that generates the lens or the dataset itself.
 
-![alt text](https://github.com/dishashur/GraphTDA.jl/blob/main/src/jureebpredicted-Ankle_boot.png?raw=true)
+GraphTDA for probing into the model and the dataset 
+As pointed out in the paper, some data points close to those marked as Ankle Boots, have been predicted as something else - thus hinting at a problem in the model that generates the lens or the dataset itself.
 
-![alt text](https://github.com/dishashur/GraphTDA.jl/blob/main/src/jureeboriginal-Ankle_boot.png?raw=true)
+<img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/jureebpredicted-Ankle_boot.png?raw=true" width="30" height="40">
+<img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/jureeboriginal-Ankle_boot.png?raw=true" width="30" height="40">
+<img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/juprojected-Ankle_boot.png?raw=true" width="30" height="40">
 
-![alt text](https://github.com/dishashur/GraphTDA.jl/blob/main/src/juprojected-Ankle_boot.png?raw=true)
+GraphTDA for biological developmental data
+
+<figure>
+  <img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/409b2_2000_400_1.png?raw=true" width="30" height="40">
+  <figcaption>Reeb-projected graph for human brain organoids 409b2 development at 7 time points from [Attraction-Repulsion Spectrum in Neighbor Embeddings](https://github.com/berenslab/ne-spectrum). Notice the segregation of the later stages from the earlier stages</figcaption>
+</figure>
 
 
-For X := Prediction matrix, G: Input graph, A: sGTDA object, this code offers the following different functions. 
+<figure>
+    <img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/2000_3500_1_drl.png?raw=true" width="30" height="40">
+  <figcaption>Reeb-projected graph for zebrafish embryo development at 7 time points from [Attraction-Repulsion Spectrum in Neighbor Embeddings](https://github.com/berenslab/ne-spectrum)</figcaption>
+</figure>
+
+<figure>
+    <img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/src/Ery.png?raw=true" width="30" height="40">
+  <figcaption>Reeb-projected graph of hematopoietic development data in Mouse from [Transcriptional Heterogeneity and Lineage Commitment in Myeloid Progenitors.](https://pubmed.ncbi.nlm.nih.gov/26627738/)</figcaption>
+</figure>
+
+
+
+
+For X := Prediction matrix aka lens, G: Input graph (options), A: sGTDA object (output), this code offers the following different functions. 
 
 1. analyzepredictions - Outputs the (1) prediction error if labels are provided, (2) the sGTDA object containing all the details of the structure
     1.1 analyzepredictions(X)
@@ -40,7 +60,7 @@ For X := Prediction matrix, G: Input graph, A: sGTDA object, this code offers th
     4.2 reebcompositionof(X)
     4.3 reebcompositionof(X,G)
 
-5. nodecompositionof - Outputs the list of nodes part of each reeb node
+5. nodecompositionof - Outputs the list of reeb nodes that include each node
     5.1 nodecompositionof(A)
     5.2 nodecompositionof(X)
     5.3 nodecompositionof(X,G)
