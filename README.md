@@ -9,25 +9,25 @@ This is a Julia based implementation for the framework introduced in [Topologica
 GraphTDA for probing into the model and the dataset 
 As pointed out in the paper, some data points close to those marked as Ankle Boots, have been predicted as something else - thus hinting at a problem in the model that generates the lens or the dataset itself.
 
-<img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/jureebpredicted-Ankle_boot.png?raw=true" width="150" height="120">
-<img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/jureeboriginal-Ankle_boot.png?raw=true" width="150" height="120">
-<img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/juprojected-Ankle_boot.png?raw=true" width="150" height="120">
+<img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/jureebpredicted-Ankle_boot.png?raw=true" width="300" height="180">
+<img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/jureeboriginal-Ankle_boot.png?raw=true" width="300" height="180">
+<img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/juprojected-Ankle_boot.png?raw=true" width="300" height="180">
 
 GraphTDA for biological developmental data
 
 <figure>
-  <img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/409b2_2000_400_1.png?raw=true" width="150" height="120">
+  <img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/409b2_2000_400_1.png?raw=true" width="300" height="180">
   <figcaption>Reeb-projected graph for human brain organoids 409b2 development at 7 time points from [Attraction-Repulsion Spectrum in Neighbor Embeddings](https://github.com/berenslab/ne-spectrum). Notice the segregation of the later stages from the earlier stages</figcaption>
 </figure>
 
 
 <figure>
-    <img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/2000_3500_1_drl.png?raw=true" width="150" height="120">
+    <img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/2000_3500_1_drl.png?raw=true" width="300" height="180">
   <figcaption>Reeb-projected graph for zebrafish embryo development at 7 time points from [Attraction-Repulsion Spectrum in Neighbor Embeddings](https://github.com/berenslab/ne-spectrum)</figcaption>
 </figure>
 
 <figure>
-    <img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/src/Ery.png?raw=true" width="150" height="120">
+    <img src="https://github.com/dishashur/GraphTDA.jl/blob/main/src/Ery.png?raw=true" width="300" height="180">
   <figcaption>Reeb-projected graph of hematopoietic development data in Mouse from [Transcriptional Heterogeneity and Lineage Commitment in Myeloid Progenitors.](https://pubmed.ncbi.nlm.nih.gov/26627738/)</figcaption>
 </figure>
 
