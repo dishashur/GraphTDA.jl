@@ -1,5 +1,7 @@
 module mainalg
 using JSON, SparseArrays, Statistics, DataStructures, MatrixNetworks, LinearAlgebra, JLD2, StatsBase
+
+
 """
 Julia-based implementation of Graph Topolgical Data Analysis 
 ---
@@ -93,8 +95,8 @@ end
 function feat_sim(features,train_features,k)
     similarity = train_features*features
     indices = [sortperm(similarity[:,i],rev=true)[1:k] for i=1:size(similarity,2)]
-    distances = [similarity[i,j] for (i,j) in enumerate(indices)]
-    return distances', indices'
+    distances = [similarity[j,i] for (i,j) in enumerate(indices)]
+    return distances, indices
 end
 
 function feat_sim_batched(features,train_features,k,batch_size)
@@ -123,23 +125,22 @@ function feat_sim_batched(features,train_features,k,batch_size)
     return overall_distances', overall_indices'
 end
 
-
+#TODO: add the randomized idea 
 function canonicalize_graph(X;knn=6,batch_size=20,thd=0,batch_training=false,batch_size_training=50000)
     ei,ej = [],[]
-    #preallocating for speed uo
-    sizehint!(ei,size(batch_indices,1)*knn)
-    sizehint!(ej,size(batch_indices,1)*knn)
+    #preallocating for speed up
+    #sizehint!(ei,size(X,1)*knn)
+    #sizehint!(ej,size(X,1)*knn)
     XT = transpose(X)
-    for i in 1:batch_size:size(X,1) 
+    for i in 1:batch_size:size(X,1) # TODO: get rid of Vector(...)
           start_i = i
           end_i = min(start_i+batch_size-1,size(X,1))	
-	  
 	     if batch_training
                distances,batch_indices = feat_sim_batched(view(XT,:,start_i:end_i),XT,knn+1,batch_size_training) 
-                
+                #TODO: use a view (@view(...))
           else                                           
 	       distances,batch_indices = feat_sim(view(XT,:,start_i:end_i),X,knn+1)
-          end                 
+          end                 #TODO: change to X[:,start_i:end_i ] bc Julia uses col-major for arrays
 	 
           for xi in range(1,size(batch_indices,1))
                cnt = 0
@@ -575,6 +576,8 @@ end
 
 function merge_reeb_nodes!(A::sGTDA,Ar,M;niters=1,node_size_thd=10,edges_dists=[],verbose = false)
      num_components = length(A.final_components_filtered) + length(A.final_components_removed)
+     #TODO: may be worth moving `worker` out because the scoping of the closure will 
+     #      include all the arguments of the function which may be large, and unneeded. 
      function worker(tmp_edges_dists,nodes,k1)
           closest_neigh = -1
           iii = findnz(tmp_edges_dists)
@@ -608,6 +611,7 @@ function merge_reeb_nodes!(A::sGTDA,Ar,M;niters=1,node_size_thd=10,edges_dists=[
           for (closest_neigh,k1) in processed_list
                if  closest_neigh != -1
                     components_to_connect = cat(A.node_assignments[closest_neigh],A.node_assignments_tiny_components[closest_neigh],dims = 1)
+                    #TODO: check out itertools: chain(list1, list2, list3) 
                     if length(components_to_connect) > 0
                          sizes = []
                          for c in components_to_connect
