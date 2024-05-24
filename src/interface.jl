@@ -48,13 +48,6 @@ function analyzepredictions(X::Matrix{Tx};G = sparse([],[],[]),trainlen=0,testle
      degree_normalize_preprocess=degree_normalize_preprocess,verbose=verbose);
 
 
-#NOTE: Charlie's contrived example of how you could split one function into two, where one modifies the loaded input.      
-#     return A, gtda, analyzepredictions(A, gtda,args..)...
-#end
-#
-#     function analyzepredictions!(A,gtda, args...)
-#        return 
-
     if length(A.origlabels) > 0
         train_nodes = [i for i in range(1,trainlen)]
         val_nodes = []
