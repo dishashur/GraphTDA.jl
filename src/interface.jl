@@ -38,7 +38,7 @@ function analyzepredictions(X::Matrix{Tx};G = sparse([],[],[]),trainlen=0,testle
     extra_lens=nothing,alpha=0.5,batch_size=10000,known_nodes=nothing,knn=5,nsteps_preprocess=5,
     min_group_size = 5,max_split_size = 100,min_component_group = 5,overlap = 0.025,nsteps_mixing=10,
     is_merging=true,split_criteria="diff",split_thd=0,is_normalize=true,is_standardize=false,merge_thd=1.0,
-    max_split_iters=200,max_merge_iters=10,degree_normalize_preprocess=1,degree_normalize_mixing=1,verbose=false)
+    max_split_iters=200,max_merge_iters=10,degree_normalize_preprocess=1,degree_normalize_mixing=1,verbose=false) where {Tx}
 
     A = _intlzrbgrph(X,G=G,labels_to_eval=labels_to_eval,labels=labels,knn=knn,batch_size=batch_size)
 
@@ -46,6 +46,14 @@ function analyzepredictions(X::Matrix{Tx};G = sparse([],[],[]),trainlen=0,testle
      ,alpha = alpha,nsteps_preprocess=nsteps_preprocess,extra_lens=extra_lens,is_merging=is_merging,split_criteria=split_criteria,split_thd=split_thd,
      is_normalize=is_normalize,is_standardize=is_standardize,merge_thd=merge_thd,max_split_iters=max_split_iters,max_merge_iters=max_merge_iters,
      degree_normalize_preprocess=degree_normalize_preprocess,verbose=verbose);
+
+
+#NOTE: Charlie's contrived example of how you could split one function into two, where one modifies the loaded input.      
+#     return A, gtda, analyzepredictions(A, gtda,args..)...
+#end
+#
+#     function analyzepredictions!(A,gtda, args...)
+#        return 
 
     if length(A.origlabels) > 0
         train_nodes = [i for i in range(1,trainlen)]
