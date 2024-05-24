@@ -1,8 +1,40 @@
 using .mainalg
 
-analyzepredictions(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = analyzepredictions(X,G=A;kwargs...)
+"""
+analyzepredictions
+---
+Initializes all the necessary structures for and executes algorithm 1 from the paper
 
-function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_to_eval = [i for i in range(1,size(X,2))],labels=[],
+Inputs
+---
+- Required: lens = x
+- Optional: - graph= G
+            - min_group_size (s1 in paper) : if the number of nodes comprising a reebnode is lesser than this, then that reebnode is rejected;
+            used for filtering tiny reebnodes and merging reebnodes
+            - max_split_size (K in paper) : if a component has more than these many nodes, its split further
+(Rule of thumb for the above 2 is to start from [1,3] and then increase according to performance)
+            - min_component_group (s2 in paper) : if the connected component in the reeb graph don't have at least these many reebnodes, that reebnode is rejected
+(Rule of thumb dictates this as 1 so that all reebnodes are considered)
+            - overlap : width of the overlapping gap to be considered
+            - labels_to_eval
+            - labels
+            - batch_size
+            - knn
+Outputs
+---
+- gtda object for the final reeb graph with fields
+    - A_reeb: Projected graph
+    - G_reeb: Reeb graph
+    - greeb_orig: Original reeb graph with possibly disconnected component
+    - reeb2node: List of original nodes within each reebnode
+    - node2reeb: List of reebnodes a particular node is a part of
+    - reebtime: Time taken for computing the reeb graph
+    - error measures calculated on the basis of provided labels
+- the original labels (if labels are given), or a blank list
+"""
+analyzepredictions(X::Matrix{Tx},A::SparseMatrixCSC{Ta, Int64};kwargs...) where {Tx,Ta<:Any} = analyzepredictions(X,G=A;kwargs...) 
+
+function analyzepredictions(X::Matrix{Tx};G = sparse([],[],[]),trainlen=0,testlen=0,labels_to_eval = [i for i in 1:size(X,2)],labels=[],
     extra_lens=nothing,alpha=0.5,batch_size=10000,known_nodes=nothing,knn=5,nsteps_preprocess=5,
     min_group_size = 5,max_split_size = 100,min_component_group = 5,overlap = 0.025,nsteps_mixing=10,
     is_merging=true,split_criteria="diff",split_thd=0,is_normalize=true,is_standardize=false,merge_thd=1.0,
@@ -14,7 +46,6 @@ function analyzepredictions(X;G = sparse([],[],[]),trainlen=0,testlen=0,labels_t
      ,alpha = alpha,nsteps_preprocess=nsteps_preprocess,extra_lens=extra_lens,is_merging=is_merging,split_criteria=split_criteria,split_thd=split_thd,
      is_normalize=is_normalize,is_standardize=is_standardize,merge_thd=merge_thd,max_split_iters=max_split_iters,max_merge_iters=max_merge_iters,
      degree_normalize_preprocess=degree_normalize_preprocess,verbose=verbose);
-
 
     if length(A.origlabels) > 0
         train_nodes = [i for i in range(1,trainlen)]
@@ -58,7 +89,7 @@ end
 
 #reeb composition gives the number of nodes in comprising a reeb node
 reebcompositionof(A::sGTDA) = A.reeb2node
-reebcompositionof(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = reebcompositionof(X,G=A;kwargs...)
+reebcompositionof(X::Tx,A::SparseMatrixCSC{Ta, Int64};kwargs...) where {Tx,Ta<:Any} = reebcompositionof(X,G=A;kwargs...)
 function reebcompositionof(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),kwargs...) 
     return reebcompositionof(analyzepredictions(X;G=G,kwargs...))
 end
@@ -66,14 +97,14 @@ end
 
 #node composition gives the reeb node indices that each node is a part of
 nodecompositionof(A::sGTDA) = A.node2reeb
-nodecompositionof(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = nodecompositionof(X,G=A;kwargs...)
+nodecompositionof(X::Tx,A::SparseMatrixCSC{Ta, Int64};kwargs...) where {Tx,Ta<:Any} = nodecompositionof(X,G=A;kwargs...)
 function nodecompositionof(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),kwargs...) 
     return nodecompositionof(analyzepredictions(X;G=G,kwargs...))
 end
 
 #reeb graph is the graph made up of the reeb nodes
 reebgraphof(A::sGTDA) = A.G_reeb
-reebgraphof(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = reebgraphof(X,G=A;kwargs...)
+reebgraphof(X::Tx,A::SparseMatrixCSC{Ta, Int64};kwargs...) where {Tx,Ta<:Any} = reebgraphof(X,G=A;kwargs...)
 function reebgraphof(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),kwargs...) 
     return reebgraphof(analyzepredictions(X;G=G,kwargs...))
 end
@@ -81,7 +112,7 @@ end
 
 #projected graph is the reeb graph expanded to the node view
 projectedgraphof(A::sGTDA) = A.A_reeb
-projectedgraphof(X::Union{Matrix{Float64},Matrix{Float32}},A::SparseMatrixCSC{Float64, Int64};kwargs...) = projectedgraphof(X,G=A;kwargs...)
+projectedgraphof(X::Tx,A::SparseMatrixCSC{Ta, Int64};kwargs...) where {Tx,Ta<:Any} = projectedgraphof(X,G=A;kwargs...)
 function projectedgraphof(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),kwargs...) 
     return projectedgraphof(analyzepredictions(X;G=G,kwargs...))
 end

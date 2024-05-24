@@ -1,34 +1,58 @@
-
 module mainalg
-
 using JSON, SparseArrays, Statistics, DataStructures, MatrixNetworks, LinearAlgebra, JLD2, StatsBase
+"""
+Julia-based implementation of Graph Topolgical Data Analysis 
+---
 
+This implementation consist of two structures -
+- the immutable structure gnl (stands for Graphs aNd Lenses), for the initial data for probing, contains 
+     - the graph adjacency matrix, G
+     - the lenses, preds
+     - the labels, origlabels
+     - the numeric labels, labels
+     - the labels to evaluate, labels_to_eval
+- the mutable structure sGTDA for the final reeb graph, contains
+     - A_reeb: Projected graph
+     - G_reeb: Reeb graph
+     - greeb_orig: Original reeb graph with possibly disconnected component
+     - reeb2node: List of original nodes within each reebnode
+     - node2reeb: List of reebnodes a particular node is a part of
+     - reebtime: Time taken for computing the reeb graph
+     - error measures calculated on the basis of provided labels
+"""
 
 #this structure holds the objects that will not change throughout the program
 struct gnl
-     G::SparseMatrixCSC{Float64, Int64}
-     preds::Union{Matrix{Float64},Matrix{Float32}} 
+     G::SparseMatrixCSC{Ta, Int64} where {Ta}
+     preds::Matrix{Tb} where {Tb} 
      origlabels::Vector{Any} 
      labels::Vector{Any} 
      labels_to_eval::Vector{Int64} 
  end
  
- 
- function _intlzrbgrph(X::Matrix{T};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],knn=5,batch_size=256) where T
-     if length(findnz(G)[3]) == 0
-         G = canonicalize_graph(X;knn = knn,batch_size=batch_size)
+"""
+function _intlzrbgrph is a helper function for internal access only
+---
+Required Input: X (the lenses)
+Optional input: G = empty sparse matrix, labels = [], labels_to_eval = all columns of X, knn=5, batch_size = 256
+If G is not provided by the user, its computed as the nearest neighbor graph using a randomized version of the features
+with 5 nearest neighbors and 256 batchsize.
+"""
+function _intlzrbgrph(X::Matrix{T};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i in 1:size(X,2)],knn=5,batch_size=256) where T
+if length(findnz(G)[3]) == 0
+     G = canonicalize_graph(X;knn = knn,batch_size=batch_size)
+end
+#convert any form of labels into numeric labels 
+origlabels = copy(labels)
+if length(origlabels)!=0
+     ulabs = unique(origlabels)
+     labels = []
+     for i in ulabs
+     push!(labels,i)
      end
-     #convert any form of labels into numeric labels 
-     origlabels = copy(labels)
-     if length(origlabels)!=0
-         ulabs = unique(origlabels)
-	 labels = []
-         for i in ulabs
-	 	push!(labels,i)
-         end
-    end
-    return gnl(G,X,origlabels,labels,labels_to_eval)
- end
+end
+return gnl(G,X,origlabels,labels,labels_to_eval)
+end
  
  
 
@@ -67,21 +91,21 @@ function toy()
 end
 
 function feat_sim(features,train_features,k)
-    similarity = features*train_features
-    indices = [sortperm(similarity[i,:],rev=true)[1:k] for i=1:size(similarity,1)]
+    similarity = train_features*features
+    indices = [sortperm(similarity[:,i],rev=true)[1:k] for i=1:size(similarity,2)]
     distances = [similarity[i,j] for (i,j) in enumerate(indices)]
-    return distances, indices
+    return distances', indices'
 end
 
 function feat_sim_batched(features,train_features,k,batch_size)
     overall_distances = nothing
     overall_indices = nothing
-    for i in Vector(1:batch_size:size(train_features,1))
+    for i in 1:batch_size:size(train_features,2)
         si = i
-        ei = min(si+batch_size-1,size(train_features,1))
-        train_features_batch = train_features[si:ei,:]'
-        similarity = features*train_features_batch
-        indices = [sortperm(similarity[i,:],rev=true)[1:k] for i=1:size(similarity,1)]
+        ei = min(si+batch_size-1,size(train_features,2))
+        train_features_batch = train_features[:,si:ei]'
+        similarity = train_features_batch*features
+        indices = [sortperm(similarity[:,i],rev=true)[1:k] for i=1:size(similarity,2)]
         distances = [similarity[i,j] for (i,j) in enumerate(indices)]
        
         indices = indices .+ si - 1
@@ -89,28 +113,33 @@ function feat_sim_batched(features,train_features,k,batch_size)
             overall_distances = distances
             overall_indices = indices
         else
-            tmp_distances = cat(overall_distances,distances,dims=2)
-            tmp_indices = cat(overall_indices,indices,dims=2)
-            new_indices = [sortperm(tmp_distances[i,:],rev=true)[1:k] for i=1:size(tmp_distances,1)]
+            tmp_distances = cat(overall_distances,distances,dims=1)
+            tmp_indices = cat(overall_indices,indices,dims=1)
+            new_indices = [sortperm(tmp_distances[:,i],rev=true)[1:k] for i=1:size(tmp_distances,2)]
             overall_distances = [tmp_distances[i,j] for (i,j) in enumerate(new_indices)]
             overall_indices = [tmp_indices[i,j] for (i,j) in enumerate(new_indices)]
         end
      end
-    return overall_distances, overall_indices
+    return overall_distances', overall_indices'
 end
 
 
 function canonicalize_graph(X;knn=6,batch_size=20,thd=0,batch_training=false,batch_size_training=50000)
     ei,ej = [],[]
-    for i in Vector(1:batch_size:size(X,1))
+    #preallocating for speed uo
+    sizehint!(ei,size(batch_indices,1)*knn)
+    sizehint!(ej,size(batch_indices,1)*knn)
+    XT = transpose(X)
+    for i in 1:batch_size:size(X,1) 
           start_i = i
           end_i = min(start_i+batch_size-1,size(X,1))	
 	  
-	  if batch_training
-               distances,batch_indices = feat_sim_batched(X[start_i:end_i,:],X,knn+1,batch_size_training)
-          else
-	       distances,batch_indices = feat_sim(X[start_i:end_i,:],transpose(X),knn+1)
-          end
+	     if batch_training
+               distances,batch_indices = feat_sim_batched(view(XT,:,start_i:end_i),XT,knn+1,batch_size_training) 
+                
+          else                                           
+	       distances,batch_indices = feat_sim(view(XT,:,start_i:end_i),X,knn+1)
+          end                 
 	 
           for xi in range(1,size(batch_indices,1))
                cnt = 0
@@ -118,6 +147,7 @@ function canonicalize_graph(X;knn=6,batch_size=20,thd=0,batch_training=false,bat
                     if ((xi-1+start_i != xj) && (distances[xi][j] >= thd) && (cnt < knn))
                          append!(ei,xi-1+start_i)
                          append!(ej,xj)
+                         #NOTE: if you know how big ei, ej MAY be, you can use `sizehint!`
                          cnt += 1
                     end
                end
@@ -145,9 +175,26 @@ function _is_overlap(x,y)
 end
 
 
-smooth_lenses!(X::Union{Matrix{Float64},Matrix{Float32}},G::SparseMatrixCSC{Float64, Int64},labels_to_eval::Vector{Int64};kwargs...) = smooth_lenses!(X,G=G,labels_to_eval=labels_to_eval;kwargs...)
-smooth_lenses!(X::Union{Matrix{Float64},Matrix{Float32}},G::SparseMatrixCSC{Float64, Int64};kwargs...) = smooth_lenses!(X,G=G;kwargs...)
-function smooth_lenses!(X::Union{Matrix{Float64},Matrix{Float32}};G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],kwargs...)
+"""
+Smooth lenses
+---
+
+Implements Step 1 of algorihtm 1 in the paper. It's ggenerally called internally but can also be called separately by the user with the following.
+
+Input
+---
+- Required: lens = x
+- Optional: graph = G, labels_to_eval = all columns of lens
+
+output
+---
+- Smoothed lens according to algorithm 1
+- Adjacency matrix
+
+"""
+smooth_lenses!(X::Tx,G::SparseMatrixCSC{Ta, Int64},labels_to_eval::Vector{Int64};kwargs...) where {Tx,Ta} = smooth_lenses!(X,G=G,labels_to_eval=labels_to_eval;kwargs...)
+smooth_lenses!(X::Tx,G::SparseMatrixCSC{Ta, Int64};kwargs...) where {Tx,Ta} = smooth_lenses!(X,G=G;kwargs...)
+function smooth_lenses!(X::Tx ;G = sparse([],[],[]),labels = [],labels_to_eval=[i for i=1:size(X,2)],kwargs...) where Tx
      A = _intlzrbgrph(X,G=G,labels_to_eval = labels_to_eval)
      return smooth_lenses!(A;kwargs...)
 end
@@ -243,7 +290,6 @@ function filtering(M,filter_cols;overlap=(0.05,0.05),nbins=2,lbs=nothing,ubs=not
           pre_ubs[i] = ubs[col]
           bin_sizes[i] = (ubs[col]-lbs[col])/nbins
      end
-     @show length(filter_cols)
 	for (j,col) in enumerate(filter_cols)
           bin_size = bin_sizes[j]
           inner_id = Int64.(floor.((M[:,col] .- pre_lbs[j]) ./ bin_size)) .+ 1
@@ -324,7 +370,6 @@ function graph_clustering(G,bins;component_size_thd=10)
 	       push!(graph_clusters[key],[points[node] for node in component])
           end
      end   
-     @show length(graph_clusters) 
      return graph_clusters
 end
 
@@ -348,6 +393,23 @@ function grouping(component_records,Ar,M,slice_columns,curr_level)
      return all_G_sub, all_M_sub
 end
 
+"""
+find_reeb_nodes
+---
+
+Implements steps 3-11 and computes an initial congiuration of reeb nodes according to algorithm 1, generally called internally
+
+Inputs
+---
+- Required: A - GTDA object
+            Ar - Adjacency matrix
+            M - Smoothed lenses
+- Optional: overlap
+
+Outputs
+---
+- Null
+"""
 function find_reeb_nodes!(A::sGTDA,M,Ar;filter_cols=nothing,nbins_pyramid=2,overlap=(0.5,0.5),smallest_component=50,component_size_thd=0,split_criteria="diff",split_thd=0.01,max_iters=50,verbose=false)
 	
      _,components = find_components(Ar,size_thd=0)
@@ -465,7 +527,7 @@ function find_reeb_nodes!(A::sGTDA,M,Ar;filter_cols=nothing,nbins_pyramid=2,over
      A.final_components_unique = Dict(i=>c for (i,c) in enumerate(all_c))
 end
 
-function filter_tiny_components!(A::sGTDA,Ar;node_size_thd=10,verbose=false,smallest_component = 50)
+function filter_tiny_components!(A::sGTDA;node_size_thd=10,verbose=false,smallest_component = 50)
      nodes = []
      for val in values(A.final_components_unique)
           for node in val
@@ -476,8 +538,8 @@ function filter_tiny_components!(A::sGTDA,Ar;node_size_thd=10,verbose=false,smal
      all_keys = keys(A.final_components_unique)
      filtered_keys = []
      removed_keys = []
-     A.node_assignments = [[] for _ in range(1,size(Ar,1))]
-     A.node_assignments_tiny_components = [[] for _ in range(1,size(Ar,1))]
+     A.node_assignments = [[] for _ in range(1,maximum(nodes))]
+     A.node_assignments_tiny_components = [[] for _ in range(1,maximum(nodes))]
      for key in all_keys
           if length(A.final_components_unique[key]) > node_size_thd
                for node in A.final_components_unique[key]
@@ -502,7 +564,7 @@ function filter_tiny_components!(A::sGTDA,Ar;node_size_thd=10,verbose=false,smal
      nodes = unique!(sort(nodes))
 
      @show "done with filtering out small nodes"
-     if length(nodes) == 0
+     if (length(nodes) == 0) && node_size_thd>=smallest_component
           @warn "The population in each reeb node should lie in [min_group_size, max_split_size]. Given bound 
           is [$(node_size_thd),$(smallest_component)]"
      end
@@ -775,6 +837,96 @@ function gives_removed_components(A::sGTDA, A_tmp, size_thd, reeb_component_thd)
     return components_removed
 end
 
+#TODO: Complete reeb_from_clusters
+function reeb_from_clusters(A::sGTDA;reeb_component_thd=1,max_iters=10,is_merging=true,edges_dists=nothing,verbose=false)
+     all_edge_index = [[], []]
+     extra_edges = [[],[]]
+     @info "Building reeb graph"
+     
+     reeb_dim = maximum(keys(A.final_components_filtered))
+     ei,ej = [],[]
+     for (key,val) in A.final_components_filtered
+          append!(ei,[key for _=1:length(val)])
+	     append!(ej,val)
+     end
+     bipartite_g = sparse(ei,ej,ones(length(ei)),reeb_dim,size(M,1))
+     bipartite_g_t = sparse(bipartite_g')
+     ei,ej = [],[]
+     for i in keys(A.final_components_filtered) 
+          neighs = findnz(bipartite_g_t[findnz(bipartite_g[i,:])[1],:])[2]
+	     setdiff!(neighs,i)
+          append!(all_edge_index[1],[i for _ in range(1,length(neighs))])
+          append!(all_edge_index[2],neighs)
+     end
+     
+     A_tmp = sparse(all_edge_index[1],all_edge_index[2],ones(length(all_edge_index[1])),reeb_dim,reeb_dim)
+     A_tmp = make_graph_symmetric(A_tmp,reeb_dim)
+     components_removed = gives_removed_components(A, A_tmp, 0, reeb_component_thd)
+
+     curr_iter = 0
+     modified = true
+     if verbose
+          @info "length(components_removed)" length(components_removed)
+     end
+     while (modified) && (is_merging) && (length(components_removed) > 0) && (curr_iter < max_iters)
+          modified = false
+          curr_iter += 1
+          for cr in components_removed
+               nodes_removed = []
+               for key in cr
+                    append!(nodes_removed,A.final_components_filtered[key])
+               end
+	          if verbose
+	       		@info "nodes_removed" nodes_removed
+       		end
+	          tmp_edges_dists = edges_dists[nodes_removed,:] 
+	          neighs = sparse(tmp_edges_dists').rowval
+               valid_neighs = setdiff(neighs,nodes_removed)
+	          tmp_edges_dists = tmp_edges_dists[:,valid_neighs]
+	       
+               key_to_connect = -1
+               closest_neigh = -1
+               if size(tmp_edges_dists.nzval,1) > 0
+                    kkk = findnz(tmp_edges_dists)
+	               closest_neigh_id = argmin(kkk[3])
+		          closest_neigh = kkk[2][closest_neigh_id]
+                    closest_neigh = valid_neighs[closest_neigh]
+		          rfmt = sparse(tmp_edges_dists')
+		          node_to_connect = nodes_removed[searchsorted(rfmt.colptr,argmin(rfmt.nzval)).stop]
+		          key_to_connect = minimum(intersect(A.node_assignments[node_to_connect],cr))
+		     end
+
+               if closest_neigh != -1
+                    component_to_connect,modified = connect_the_components(A,closest_neigh,verbose=verbose)
+		          append!(all_edge_index[1],key_to_connect)
+                    append!(all_edge_index[2],component_to_connect)
+                    append!(extra_edges[1],node_to_connect)
+                    append!(extra_edges[2],closest_neigh)
+               end
+          end
+          A_tmp = sparse(all_edge_index[1],all_edge_index[2],ones(length(all_edge_index[1])),reeb_dim,reeb_dim)
+	     A_tmp = make_graph_symmetric(A_tmp,reeb_dim)
+          if verbose
+               @info "length(findnz(A_tmp)[1])" length(findnz(A_tmp)[1])
+          end
+	     
+          components_removed = gives_removed_components(A, A_tmp, 0, reeb_component_thd)
+     end
+     
+
+   
+
+     A.filtered_nodes = sort(unique!(intersect(A.filtered_nodes,[k for k in keys(A.final_components_filtered)])))
+    
+     A.greeb_orig = A_tmp
+     
+
+     A.G_reeb  = A.greeb_orig[A.filtered_nodes,:][:,A.filtered_nodes]
+     if A.G_reeb.nzval == []
+          @warn "The filtered reeb graph is empty; you might want to decrease min_component_group. Default is 1"
+     end     
+end
+
 
 function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=1,max_iters=10,is_merging=true,edges_dists=nothing,verbose=false)
      all_edge_index = [[], []]
@@ -917,10 +1069,6 @@ function reebgroups!(A::sGTDA;verbose=false)
 end
 
 
-
-
-
-
 function connect_the_components(A::sGTDA,closest_neigh;verbose=false)
      components_to_connect = A.node_assignments[closest_neigh]
      if verbose
@@ -961,6 +1109,19 @@ function select_merge_edges(A_knn,M;merge_thd=1.0)
      return edges_dists
 end
 
+
+"""
+gtdagraph!
+---
+
+Implements all of algrithm 1 from the main paper with 
+     - step 1,2  implemented as smooth_lenses!
+     - step 3-10 implemented as find_reeb_nodes!
+     - step 11-15 implemented as filter_tiny_components!
+     - step 16 and algorithm 2 as merge_reeb_nodes!
+     - steps 17, 18 and algorithm 3 as build_reeb_graph!
+"""
+
 function gtdagraph!(A::gnl;overlap = 0.025,max_split_size = 100,min_group_size=5,min_component_group=5,alpha=0.5,nsteps_preprocess=5,extra_lens=nothing,is_merging=true,split_criteria="diff",split_thd=0,is_normalize=true,is_standardize=false,merge_thd=1.0,max_split_iters=200,max_merge_iters=10,nprocs=1,degree_normalize_preprocess=1,verbose=false)
 
      M,Ar = smooth_lenses!(A,extra_lens=extra_lens,alpha=alpha,nsteps = nsteps_preprocess,normalize = is_normalize,standardize = is_standardize,degree_normalize=degree_normalize_preprocess)
@@ -974,11 +1135,11 @@ function gtdagraph!(A::gnl;overlap = 0.025,max_split_size = 100,min_group_size=5
           @info "Initial number of reebnodes found " length(gtda.final_components_unique)
      end
 
-     filter_tiny_components!(gtda,Ar,node_size_thd=min_group_size,smallest_component=max_split_size)
+     filter_tiny_components!(gtda,node_size_thd=min_group_size,smallest_component=max_split_size)
 
-     if verbose
-          @info "After filtering tiny components " length(gtda.final_components_filtered)
-     end
+    
+     @info "After filtering tiny components " length(gtda.final_components_filtered)
+     
 
      edges_dists = select_merge_edges(A.G,M,merge_thd = merge_thd)
 
