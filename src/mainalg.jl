@@ -1053,7 +1053,7 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=1,max_iters=10
                     nodes = A.final_components_filtered[rnode]
                     nodes = unique!(nodes)
                     mapping = Dict(i => k for (i,k) in enumerate(nodes))
-		    sub_A = Ar[nodes,:][:,nodes]
+              sub_A = Ar[nodes, nodes]
 		    temp = findnz(sub_A)
                     for (i,j) in zip(temp[1],temp[2])
                          append!(ei,mapping[i])
