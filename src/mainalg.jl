@@ -365,7 +365,7 @@ function graph_clustering(G,bins;component_size_thd=10)
           if length(points) < component_size_thd
                continue
           end
-          Gr = copy(G[points,:][:,points])
+          Gr = copy(G[points,points])
           _,components = find_components(Gr,size_thd = component_size_thd) 
 	     for component in components
 	       push!(graph_clusters[key],[points[node] for node in component])
@@ -380,7 +380,7 @@ function grouping(component_records,Ar,M,slice_columns,curr_level)
      this1 = time()
      for component_id in curr_level
           component = component_records[component_id]
-          G_sub = copy(Ar[component,:][:,component])
+          G_sub = copy(Ar[component,component])
           if slice_columns
                M_sub = copy(M[component,:][:,filter_cols])
           else
