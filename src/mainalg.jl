@@ -574,25 +574,38 @@ end
 
 
 """
-     closest_proper_neighbor(edge_dists, nodes)
+     proper_neighborhood(edge_dists, nodes)
 
-Compute the closest neighbor of the vertex set `nodes` that is not in `nodes`.
-The distance between two vertices is given by a symmetric adjacency matrix 
-`edge_dists`.
+Compute the proper neighborhood of the vertex set `nodes`, 
+i.e. those vertices adjacent to `nodes` but not in `nodes`. 
+Return the proper neighborhood and the bipartite graph 
+induced by the proper neighborhood and `nodes`.
 """
-function closest_proper_neighbor(edge_dists, nodes)
+function proper_neighborhood(edge_dists, nodes)
      # the subgraph induced by vertices adjacent to NODES plus NODES
      subgraph_adj_to_nodes = edge_dists[:, nodes]     
-
      neighborhood = unique(subgraph_adj_to_nodes.rowval)
      proper_neighborhood = setdiff(neighborhood, nodes)
      edge_to_proper_neighborhood = subgraph_adj_to_nodes[proper_neighborhood, :]
+     return proper_neighborhood, edge_to_proper_neighborhood 
+end
+
+
+"""
+     closest_proper_neighbor(edge_dists, nodes)
+
+Compute the closest neighbor of the vertex set `nodes` 
+that is not in `nodes`. The distance between two vertices 
+is given by a symmetric adjacency matrix `edge_dists`.
+"""
+function closest_proper_neighbor(edge_dists, nodes)
+     proper_neighbors, edge_to_proper_neighborhood = proper_neighborhood(edge_dists, nodes)
      # If proper_neighborhood is not empty,
      # then edge_to_proper_neighborhood is not empty too.
-     if length(proper_neighborhood) > 0 
+     if length(proper_neighbors) > 0 
           i = argmin(edge_to_proper_neighborhood.nzval)
           closest_neigh_localid = edge_to_proper_neighborhood.rowval[i]
-          closest_neigh = proper_neighborhood[closest_neigh_localid]
+          closest_neigh = proper_neighbors[closest_neigh_localid]
      else
           closest_neigh = -1
      end 
@@ -985,10 +998,8 @@ function build_reeb_graph!(obj::gnl,A::sGTDA,M;reeb_component_thd=1,max_iters=10
 	          if verbose
 	       		@info "nodes_removed" nodes_removed
        		end
-	          tmp_edges_dists = edges_dists[nodes_removed,:] 
-	          neighs = sparse(tmp_edges_dists').rowval
-               valid_neighs = setdiff(neighs,nodes_removed)
-	          tmp_edges_dists = tmp_edges_dists[:,valid_neighs]
+               valid_neighs, tmp_edges_dists = proper_neighborhood(edges_dists,nodes_removed)
+               tmp_edges_dists = sparse(tmp_edges_dists')
 	       
                key_to_connect = -1
                closest_neigh = -1
