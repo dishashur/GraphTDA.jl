@@ -573,25 +573,35 @@ function filter_tiny_components!(A::sGTDA;node_size_thd=10,verbose=false,smalles
 end
 
 
+"""
+     closest_proper_neighbor(edge_dists, nodes)
+
+Compute the closest neighbor of the vertex set `nodes` that is not in `nodes`.
+The distance between two vertices is given by a symmetric adjacency matrix 
+`edge_dists`.
+"""
+function closest_proper_neighbor(edge_dists, nodes)
+     # the subgraph induced by vertices adjacent to NODES plus NODES
+     subgraph_adj_to_nodes = edge_dists[:, nodes]     
+
+     neighborhood = unique(subgraph_adj_to_nodes.rowval)
+     proper_neighborhood = setdiff(neighborhood, nodes)
+     edge_to_proper_neighborhood = subgraph_adj_to_nodes[proper_neighborhood, :]
+     # If proper_neighborhood is not empty,
+     # then edge_to_proper_neighborhood is not empty too.
+     if length(proper_neighborhood) > 0 
+          i = argmin(edge_to_proper_neighborhood.nzval)
+          closest_neigh_localid = edge_to_proper_neighborhood.rowval[i]
+          closest_neigh = proper_neighborhood[closest_neigh_localid]
+     else
+          closest_neigh = -1
+     end 
+     return closest_neigh 
+end 
+
 
 function merge_reeb_nodes!(A::sGTDA,Ar,M;niters=1,node_size_thd=10,edges_dists=[],verbose = false)
      num_components = length(A.final_components_filtered) + length(A.final_components_removed)
-     #TODO: may be worth moving `worker` out because the scoping of the closure will 
-     #      include all the arguments of the function which may be large, and unneeded. 
-     function worker(tmp_edges_dists,nodes,k1)
-          closest_neigh = -1
-          iii = findnz(tmp_edges_dists)
-          neighs = iii[2]
-          valid_neighs = setdiff(neighs,nodes)
-          tmp_edges_dists = tmp_edges_dists[:,valid_neighs]
-          iii =  findnz(tmp_edges_dists)
-          if length(tmp_edges_dists.nzval) > 0
-               closest_neigh_id = argmin(tmp_edges_dists.nzval)
-               closest_neigh = iii[2][closest_neigh_id]
-               closest_neigh = valid_neighs[closest_neigh]
-          end
-          return closest_neigh, k1
-     end
      modified = true
      
      @info "Now merging reeb nodes"
@@ -606,7 +616,9 @@ function merge_reeb_nodes!(A::sGTDA,Ar,M;niters=1,node_size_thd=10,edges_dists=[
           keys_to_check = keys(A.final_components_removed) 
           processed_list = []
           for k1 in keys_to_check
-               push!(processed_list,worker(edges_dists[A.final_components_removed[k1],:],A.final_components_removed[k1],k1))
+               nodes = A.final_components_removed[k1]
+               closest_neigh = closest_proper_neighbor(edges_dists, nodes)
+               push!(processed_list, (closest_neigh,k1))
           end
           for (closest_neigh,k1) in processed_list
                if  closest_neigh != -1
